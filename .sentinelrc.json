@@ -1,0 +1,19 @@
+{
+  "testingThreshold": 80,
+  "securityLevel": "strict",
+  "performanceTarget": "optimal",
+  "maintainabilityScore": 75,
+  "excludePatterns": [
+    "node_modules",
+    "dist",
+    "coverage",
+    ".git",
+    ".sentinelrc.json"
+  ],
+  "reporters": [
+    "json",
+    "markdown",
+    "console"
+  ],
+  "failOnWarnings": false
+}

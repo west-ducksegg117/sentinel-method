@@ -1,0 +1,49 @@
+{
+  "name": "sentinel-method",
+  "version": "1.0.0",
+  "description": "A framework for production-grade quality assurance of AI-generated code",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src tests --ext .ts",
+    "lint:fix": "eslint src tests --ext .ts --fix",
+    "type-check": "tsc --noEmit",
+    "validate": "npm run lint && npm run type-check && npm test",
+    "clean": "rm -rf dist coverage .nyc_output"
+  },
+  "keywords": [
+    "ai-code-validation",
+    "quality-assurance",
+    "testing",
+    "security",
+    "performance",
+    "maintainability",
+    "ci-cd"
+  ],
+  "author": "Camilo Girardelli",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "globby": "^13.2.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/js-yaml": "^4.0.5",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.45.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
