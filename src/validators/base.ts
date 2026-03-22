@@ -26,6 +26,12 @@ export abstract class BaseValidator {
    */
   protected getAllFiles(dir: string): string[] {
     const ignore = SentinelIgnore.fromFile(dir);
+
+    // Adicionar excludePatterns da configuração
+    if (this.config.excludePatterns && this.config.excludePatterns.length > 0) {
+      ignore.addPatterns(this.config.excludePatterns);
+    }
+
     const files: string[] = [];
 
     const traverse = (currentDir: string): void => {

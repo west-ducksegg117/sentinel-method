@@ -117,7 +117,7 @@ export class Sentinel {
     let failedChecks = 0;
     let warnings = 0;
 
-    const collector = new FileCollector(sourceDir);
+    const collector = new FileCollector(sourceDir, this.config.excludePatterns);
     const totalFiles = collector.getCodeFiles().length;
 
     for (const result of results) {

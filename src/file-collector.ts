@@ -21,8 +21,13 @@ export class FileCollector {
   /** Parser de .sentinelignore */
   private ignore: SentinelIgnore;
 
-  constructor(private readonly sourceDir: string) {
+  constructor(private readonly sourceDir: string, excludePatterns?: string[]) {
     this.ignore = SentinelIgnore.fromFile(sourceDir);
+
+    // Adicionar padrões de exclusão da configuração
+    if (excludePatterns && excludePatterns.length > 0) {
+      this.ignore.addPatterns(excludePatterns);
+    }
   }
 
   /**

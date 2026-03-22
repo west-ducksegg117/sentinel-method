@@ -221,6 +221,62 @@ const password = "admin123";
     expect(result.summary.failedChecks).toBeLessThanOrEqual(2);
   });
 
+  // ── .sentinelignore end-to-end ──
+
+  test('deve respeitar .sentinelignore ao analisar projeto', async () => {
+    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}');
+
+    // Arquivo limpo
+    fs.writeFileSync(path.join(projectDir, 'src', 'app.ts'),
+      '/** App */\nexport const x = 1;\n');
+
+    // Arquivo com vulnerabilidade em dir que será ignorado
+    fs.mkdirSync(path.join(projectDir, 'generated'), { recursive: true });
+    fs.writeFileSync(path.join(projectDir, 'generated', 'unsafe.ts'),
+      'const r = eval("hack"); const pwd = "secret";\n');
+
+    // .sentinelignore excluindo o diretório generated
+    fs.writeFileSync(path.join(projectDir, '.sentinelignore'), 'generated/\n');
+
+    const sentinel = new Sentinel({
+      testingThreshold: 0,
+      maintainabilityScore: 0,
+    });
+    const result = await sentinel.validate(projectDir);
+
+    // Security scanner não deve encontrar issues do generated/
+    const secResult = result.results.find(r => r.validator === 'Security Scanning');
+    expect(secResult).toBeDefined();
+    const hasGeneratedIssue = secResult!.issues.some(i =>
+      i.file?.includes('generated') || i.file?.includes('unsafe'));
+    expect(hasGeneratedIssue).toBe(false);
+  });
+
+  test('deve respeitar excludePatterns da config', async () => {
+    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}');
+    fs.writeFileSync(path.join(projectDir, 'src', 'app.ts'),
+      '/** App */\nexport const x = 1;\n');
+
+    // Arquivo problemático em dir excluído via config
+    fs.mkdirSync(path.join(projectDir, 'vendor'), { recursive: true });
+    fs.writeFileSync(path.join(projectDir, 'vendor', 'lib.ts'),
+      'const r = eval("x"); const key = "password123";\n');
+
+    const sentinel = new Sentinel({
+      testingThreshold: 0,
+      maintainabilityScore: 0,
+      excludePatterns: ['vendor/'],
+    });
+    const result = await sentinel.validate(projectDir);
+
+    // Validator não deve reportar issues do vendor/
+    const secResult = result.results.find(r => r.validator === 'Security Scanning');
+    expect(secResult).toBeDefined();
+    const hasVendorIssue = secResult!.issues.some(i =>
+      i.file?.includes('vendor'));
+    expect(hasVendorIssue).toBe(false);
+  });
+
   // ── failOnWarnings ──
 
   test('deve falhar quando failOnWarnings está ativo e há warnings', async () => {
