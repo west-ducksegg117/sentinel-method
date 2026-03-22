@@ -338,44 +338,24 @@ main() {
     print_info "Encontrados ${file_count} arquivos de código"
   fi
 
-  # ── Step 2: Choose analysis ──
-  CHOICE=$(show_analysis_menu)
+  # ── Step 2: Select output directory ──
+  print_step "Selecione onde salvar os resultados"
+  print_info "Uma janela do Finder/Explorer será aberta..."
 
-  # For options that generate files, pick output directory
-  OUTPUT_PATH=""
-  if [[ "$CHOICE" =~ ^[2345678]$ ]]; then
-    print_step "Selecione onde salvar os resultados"
-    print_info "Uma janela do Finder/Explorer será aberta..."
+  OUTPUT_PATH=$(pick_folder "🛡️ Sentinel — Selecione DESTINO dos resultados" "$HOME/Documents")
 
-    OUTPUT_PATH=$(pick_folder "🛡️ Sentinel — Selecione DESTINO dos resultados" "$HOME/Documents")
-
-    if [ -z "$OUTPUT_PATH" ]; then
-      OUTPUT_PATH="${PROJECT_PATH}/sentinel-results"
-      print_warn "Nenhum destino selecionado. Usando: ${OUTPUT_PATH}"
-    fi
-
-    mkdir -p "$OUTPUT_PATH"
-    print_success "Destino: ${OUTPUT_PATH}"
-  elif [[ "$CHOICE" == "1" ]]; then
-    # Console only — mas perguntar se quer HTML também
-    echo "" >&2
-    read -rp "  Deseja também gerar report HTML? [S/n]: " also_html </dev/tty
-    also_html="${also_html:-S}"
-    if [[ "$also_html" =~ ^[Ss]$ ]]; then
-      print_step "Selecione onde salvar o report HTML"
-      print_info "Uma janela do Finder/Explorer será aberta..."
-      OUTPUT_PATH=$(pick_folder "🛡️ Sentinel — Selecione DESTINO do report" "$HOME/Documents")
-      if [ -z "$OUTPUT_PATH" ]; then
-        OUTPUT_PATH="${PROJECT_PATH}/sentinel-results"
-        print_warn "Nenhum destino selecionado. Usando: ${OUTPUT_PATH}"
-      fi
-      mkdir -p "$OUTPUT_PATH"
-      print_success "Destino: ${OUTPUT_PATH}"
-      CHOICE="1+html"
-    fi
+  if [ -z "$OUTPUT_PATH" ]; then
+    OUTPUT_PATH="${PROJECT_PATH}/sentinel-results"
+    print_warn "Nenhum destino selecionado. Usando: ${OUTPUT_PATH}"
   fi
 
-  # ── Step 3: Execute ──
+  mkdir -p "$OUTPUT_PATH"
+  print_success "Destino: ${OUTPUT_PATH}"
+
+  # ── Step 3: Choose analysis ──
+  CHOICE=$(show_analysis_menu)
+
+  # ── Step 4: Execute ──
   local start_time
   start_time=$(date +%s)
 
@@ -386,10 +366,6 @@ main() {
 
   case "$CHOICE" in
     1) run_validate_console "$PROJECT_PATH" ;;
-    "1+html")
-      run_validate_console "$PROJECT_PATH"
-      run_validate_html "$PROJECT_PATH" "$OUTPUT_PATH"
-      ;;
     2) run_validate_json "$PROJECT_PATH" "$OUTPUT_PATH" ;;
     3) run_validate_markdown "$PROJECT_PATH" "$OUTPUT_PATH" ;;
     4) run_validate_html "$PROJECT_PATH" "$OUTPUT_PATH" ;;
@@ -416,10 +392,8 @@ main() {
   echo ""
   echo -e "  ${DIM}⏱️  Tempo total: ${elapsed}s${NC}"
 
-  # ── Step 4: Open results (if files were generated) ──
-  if [ -n "$OUTPUT_PATH" ] && [ -d "$OUTPUT_PATH" ]; then
-    open_results "$OUTPUT_PATH"
-  fi
+  # ── Step 5: Open results ──
+  open_results "$OUTPUT_PATH"
 
   echo ""
   echo -e "  ${DIM}Powered by @girardelli/sentinel-method v2.0${NC}"
