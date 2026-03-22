@@ -4,8 +4,12 @@
   "description": "A framework for production-grade quality assurance of AI-generated code",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "sentinel": "dist/cli.js"
+  },
   "scripts": {
     "build": "tsc",
+    "start": "node dist/cli.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -27,7 +31,8 @@
   "author": "Camilo Girardelli",
   "license": "MIT",
   "dependencies": {
-    "chalk": "^5.3.0",
+    "chalk": "^4.1.2",
+    "commander": "^12.1.0",
     "globby": "^13.2.0",
     "js-yaml": "^4.1.0"
   },
