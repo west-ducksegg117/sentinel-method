@@ -453,4 +453,79 @@ program
     console.log('');
   });
 
+program
+  .command('hooks')
+  .description('Manage git hooks (pre-commit / pre-push)')
+  .option('--install', 'Install pre-commit and pre-push hooks')
+  .option('--remove', 'Remove Sentinel hooks')
+  .option('--status', 'Show installed hooks status')
+  .option('-t, --testing-threshold <n>', 'Testing threshold for hooks', '80')
+  .option('-s, --security-level <level>', 'Security level for hooks', 'strict')
+  .action((options: Record<string, any>) => {
+    const { HookManager } = require('./hooks');
+    const cwd = process.cwd();
+    const manager = new HookManager(cwd);
+
+    printHeader();
+
+    if (!manager.isGitRepo()) {
+      console.log(`  ${FAIL} ${chalk.red('Not a git repository')}`);
+      console.log('');
+      process.exit(1);
+    }
+
+    if (options.remove) {
+      console.log(chalk.bold('  Removing Sentinel hooks...\n'));
+      const removed = manager.removeAll();
+      if (removed.preCommit) console.log(`  ${PASS} Removed pre-commit hook`);
+      if (removed.prePush) console.log(`  ${PASS} Removed pre-push hook`);
+      if (!removed.preCommit && !removed.prePush) {
+        console.log(`  ${INFO} No Sentinel hooks found`);
+      }
+    } else if (options.status) {
+      console.log(chalk.bold('  Git Hooks Status:\n'));
+      const installed = manager.listInstalled();
+      if (installed.length === 0) {
+        console.log(`  ${INFO} No Sentinel hooks installed`);
+      } else {
+        for (const hook of installed) {
+          console.log(`  ${PASS} ${chalk.green(hook)} — active`);
+        }
+      }
+    } else if (options.install) {
+      console.log(chalk.bold('  Installing Sentinel hooks...\n'));
+      const hookOpts = {
+        testingThreshold: parseInt(options.testingThreshold, 10),
+        securityLevel: options.securityLevel,
+      };
+      const result = manager.installAll(hookOpts);
+
+      if (result.preCommit.success) {
+        console.log(`  ${PASS} ${result.preCommit.message}`);
+      } else {
+        console.log(`  ${WARN} ${result.preCommit.message}`);
+      }
+
+      if (result.prePush.success) {
+        console.log(`  ${PASS} ${result.prePush.message}`);
+      } else {
+        console.log(`  ${WARN} ${result.prePush.message}`);
+      }
+    } else {
+      // Default: mostrar status
+      console.log(chalk.bold('  Git Hooks Status:\n'));
+      const installed = manager.listInstalled();
+      if (installed.length === 0) {
+        console.log(`  ${INFO} No Sentinel hooks installed`);
+        console.log(`\n  ${INFO} Use ${chalk.cyan('sentinel hooks --install')} to set up hooks`);
+      } else {
+        for (const hook of installed) {
+          console.log(`  ${PASS} ${chalk.green(hook)} — active`);
+        }
+      }
+    }
+
+    console.log('');
+  });
+
 program.parse();
