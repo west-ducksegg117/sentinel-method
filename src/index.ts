@@ -15,6 +15,7 @@ export { FileCollector } from './file-collector';
 export { SentinelIgnore } from './ignore';
 export { ResultCache } from './cache';
 export { HookManager } from './hooks';
+export { DiffAnalyzer } from './diff';
 export type { CacheEntry, CachedValidatorResult } from './cache';
 export { PluginLoader } from './plugin-loader';
 export type { SentinelPlugin, PluginRegistry } from './plugin-loader';
