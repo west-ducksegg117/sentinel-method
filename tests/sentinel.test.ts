@@ -46,11 +46,14 @@ describe('Sentinel', () => {
     const sentinel = new Sentinel();
     const results = await sentinel.runPipeline(testDir);
 
-    expect(results).toHaveLength(4);
+    expect(results).toHaveLength(7);
     expect(results[0].validator).toBe('Testing Coverage');
     expect(results[1].validator).toBe('Security Scanning');
     expect(results[2].validator).toBe('Performance Benchmarks');
     expect(results[3].validator).toBe('Maintainability Checker');
+    expect(results[4].validator).toBe('Dependency Analysis');
+    expect(results[5].validator).toBe('Documentation Coverage');
+    expect(results[6].validator).toBe('Code Style');
   });
 
   test('should generate report', async () => {
@@ -88,6 +91,6 @@ describe('Sentinel', () => {
     const result = await sentinel.validate(testDir);
 
     expect(result).toBeDefined();
-    expect(result.results).toHaveLength(4);
+    expect(result.results).toHaveLength(7);
   });
 });

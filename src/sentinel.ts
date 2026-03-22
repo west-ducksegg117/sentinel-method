@@ -1,20 +1,32 @@
 import * as fs from 'fs';
 import { SentinelConfig, ValidationResult, ValidatorResult } from './types';
+import { BaseValidator } from './validators/base';
 import { TestingValidator } from './validators/testing';
 import { SecurityValidator } from './validators/security';
 import { PerformanceValidator } from './validators/performance';
 import { MaintainabilityValidator } from './validators/maintainability';
+import { DependencyValidator } from './validators/dependency';
+import { DocumentationValidator } from './validators/documentation';
+import { CodeStyleValidator } from './validators/code-style';
+import { FileCollector } from './file-collector';
 import { Reporter } from './reporter';
 import { ConfigLoader } from './config';
 
+/**
+ * Motor principal do Sentinel Method.
+ *
+ * Orquestra o pipeline de validação com suporte a:
+ * - 7 validators nativos (testing, security, performance, maintainability,
+ *   dependency, documentation, code-style)
+ * - Execução paralela via Promise.all
+ * - Validators customizados via registerValidator()
+ * - FileCollector centralizado para I/O otimizado
+ */
 export class Sentinel {
   private config: SentinelConfig;
   private reporter: Reporter;
   private configLoader: ConfigLoader;
-  private testingValidator: TestingValidator;
-  private securityValidator: SecurityValidator;
-  private performanceValidator: PerformanceValidator;
-  private maintainabilityValidator: MaintainabilityValidator;
+  private validators: BaseValidator[] = [];
 
   constructor(config?: Partial<SentinelConfig>) {
     this.configLoader = new ConfigLoader();
@@ -22,10 +34,26 @@ export class Sentinel {
     this.configLoader.validate(this.config);
     this.reporter = new Reporter();
 
-    this.testingValidator = new TestingValidator(this.config);
-    this.securityValidator = new SecurityValidator(this.config);
-    this.performanceValidator = new PerformanceValidator(this.config);
-    this.maintainabilityValidator = new MaintainabilityValidator(this.config);
+    // Registrar validators nativos
+    this.validators = [
+      new TestingValidator(this.config),
+      new SecurityValidator(this.config),
+      new PerformanceValidator(this.config),
+      new MaintainabilityValidator(this.config),
+      new DependencyValidator(this.config),
+      new DocumentationValidator(this.config),
+      new CodeStyleValidator(this.config),
+    ];
+  }
+
+  /** Registra um validator customizado no pipeline */
+  registerValidator(validator: BaseValidator): void {
+    this.validators.push(validator);
+  }
+
+  /** Retorna a lista de validators registrados */
+  getValidators(): BaseValidator[] {
+    return [...this.validators];
   }
 
   async validate(sourceDir: string): Promise<ValidationResult> {
@@ -43,22 +71,25 @@ export class Sentinel {
     };
   }
 
+  /**
+   * Executa todos os validators em paralelo.
+   * Cada validator é wrappado em uma Promise para execução concorrente.
+   */
   async runPipeline(sourceDir: string): Promise<ValidatorResult[]> {
-    const results: ValidatorResult[] = [];
+    const validatorPromises = this.validators.map(
+      (validator) => Promise.resolve(validator.validate(sourceDir)),
+    );
 
-    results.push(this.testingValidator.validate(sourceDir));
-    results.push(this.securityValidator.validate(sourceDir));
-    results.push(this.performanceValidator.validate(sourceDir));
-    results.push(this.maintainabilityValidator.validate(sourceDir));
-
-    return results;
+    return Promise.all(validatorPromises);
   }
 
   private aggregateResults(sourceDir: string, results: ValidatorResult[]): ValidationResult {
     let passedChecks = 0;
     let failedChecks = 0;
     let warnings = 0;
-    const totalFiles = this.countFiles(sourceDir);
+
+    const collector = new FileCollector(sourceDir);
+    const totalFiles = collector.getCodeFiles().length;
 
     for (const result of results) {
       if (result.passed) {
@@ -97,28 +128,5 @@ export class Sentinel {
     const format = this.config.reporters?.includes('markdown') ? 'markdown' : 'json';
     const reportObj = this.reporter.format(result, format as any);
     return reportObj.content;
-  }
-
-  private countFiles(sourceDir: string): number {
-    let count = 0;
-
-    const traverse = (dir: string): void => {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-
-        const fullPath = `${dir}/${entry.name}`;
-
-        if (entry.isDirectory()) {
-          traverse(fullPath);
-        } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.js'))) {
-          count++;
-        }
-      }
-    };
-
-    traverse(sourceDir);
-    return count;
   }
 }
