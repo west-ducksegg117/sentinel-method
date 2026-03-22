@@ -5,7 +5,7 @@ A production-grade quality gate framework for AI-generated code validation.
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.1+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-213_passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-263_passing-brightgreen.svg)](#testing)
 [![Coverage](https://img.shields.io/badge/Coverage-96%25-brightgreen.svg)](#testing)
 
 ## Overview
@@ -48,16 +48,18 @@ Developed by **Camilo Girardelli** — IEEE Senior Member, Senior Software Archi
 │              ┌───────────▼───────────┐                    │
 │              │   BaseValidator       │  ← Template Method │
 │              │   + FileCollector     │  ← Cached I/O      │
+│              │   + SentinelIgnore    │  ← .sentinelignore  │
 │              └───────────┬───────────┘                    │
 │                          │                                │
 │              ┌───────────▼───────────┐                    │
 │              │   Sentinel Engine     │  ← Promise.all()   │
 │              │   + PluginLoader      │  ← Extensible      │
+│              │   + Error Recovery    │  ← Resilient       │
 │              └───────────┬───────────┘                    │
 │                          │                                │
 │              ┌───────────▼───────────┐                    │
 │              │  Reporter + CLI       │                    │
-│              │  (JSON/MD/Console)    │                    │
+│              │  (JSON/MD/HTML/CLI)   │                    │
 │              └───────────────────────┘                    │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -95,13 +97,25 @@ npx sentinel list
 sentinel validate [directory] [options]
 
 Options:
-  -f, --format <format>              Report format: json, markdown, console (default: console)
+  -f, --format <format>              Report format: json, markdown, console, html (default: console)
   -t, --testing-threshold <n>        Minimum testing score 0-100 (default: 80)
   -s, --security-level <level>       Security: strict, moderate, permissive (default: strict)
   -p, --performance-target <target>  Performance: optimal, good, acceptable (default: optimal)
   -m, --maintainability-score <n>    Minimum maintainability score 0-100 (default: 75)
   --fail-on-warnings                 Treat warnings as failures
   --json                             Output raw JSON (shorthand for -f json)
+  --min-severity <level>             Filter issues: error, warning, info
+  -w, --watch                        Watch mode — re-run on file changes
+```
+
+### Initialize Project
+
+```bash
+# Generate .sentinelrc.json and .sentinelignore
+npx sentinel init
+
+# Overwrite existing files
+npx sentinel init --force
 ```
 
 ### Programmatic Usage
@@ -177,6 +191,26 @@ Create a `.sentinelrc.json`:
   "failOnWarnings": false
 }
 ```
+
+### .sentinelignore
+
+Create a `.sentinelignore` file (`.gitignore` syntax) to exclude files from analysis:
+
+```gitignore
+# Generated code
+generated/
+*.auto.ts
+
+# Vendor libraries
+vendor/
+
+# Specific files
+legacy-module.js
+```
+
+Default exclusions (always active): `node_modules/`, `.git/`, `dist/`, `coverage/`, `.nyc_output/`, `.*` (hidden files/dirs).
+
+The `excludePatterns` in `.sentinelrc.json` also feeds into the ignore system.
 
 ## CI/CD Integration
 
@@ -264,7 +298,7 @@ npm run test:coverage   # With coverage report
 npm run test:watch      # Watch mode
 ```
 
-Current metrics: **213 tests**, 96.5% statements, 87.6% branches, 96.9% functions.
+Current metrics: **263 tests**, 96%+ statements, 87%+ branches, 96%+ functions.
 
 ## Development
 
@@ -298,12 +332,22 @@ abstract class BaseValidator {
 }
 
 class FileCollector {
-  constructor(sourceDir: string);
+  constructor(sourceDir: string, excludePatterns?: string[]);
   collect(): string[];
   getSourceFiles(): string[];
   getTestFiles(): string[];
   readFile(filePath: string): string;  // cached
   clearCache(): void;
+  getIgnore(): SentinelIgnore;
+}
+
+class SentinelIgnore {
+  constructor(patterns?: string[]);
+  static fromFile(dir: string): SentinelIgnore;
+  addPatterns(patterns: string[]): void;
+  isIgnored(relativePath: string): boolean;
+  filter(paths: string[], baseDir: string): string[];
+  getPatterns(): string[];
 }
 
 class PluginLoader {
