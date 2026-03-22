@@ -244,6 +244,17 @@ function filterBySeverity(result: ValidationResult, minSeverity: string): Valida
   return { ...result, results: filteredResults };
 }
 
+/** Detecta formato de report baseado na extensão do arquivo */
+function detectFormatFromExtension(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.json': return 'json';
+    case '.md': return 'markdown';
+    case '.html': return 'html';
+    default: return 'json';
+  }
+}
+
 /** Executa validação e exibe resultados (reutilizado por run e watch) */
 async function runValidation(
   sentinel: Sentinel,
@@ -268,6 +279,20 @@ async function runValidation(
     }
 
     printSummary(filtered);
+  }
+
+  // ── Salvar report em arquivo (--output) ──
+  if (options.output) {
+    const fs = require('fs');
+    const { Reporter } = require('./reporter');
+    const reporter = new Reporter();
+
+    const outputPath = path.resolve(options.output);
+    const outputFormat = detectFormatFromExtension(outputPath);
+    const report = reporter.format(filtered, outputFormat);
+
+    fs.writeFileSync(outputPath, report.content);
+    console.log(`\n  ${INFO} Report saved to ${chalk.cyan(outputPath)}\n`);
   }
 
   return result.exitCode;
@@ -296,6 +321,7 @@ program
   .option('--json', 'Output raw JSON (shorthand for -f json)')
   .option('--min-severity <level>', 'Filter issues by minimum severity: error, warning, info')
   .option('-w, --watch', 'Watch mode — re-run validation on file changes', false)
+  .option('-o, --output <file>', 'Save report to file (auto-detects format from extension: .json, .md, .html)')
   .action(async (directory: string, options: Record<string, any>) => {
     const sourceDir = path.resolve(directory);
 

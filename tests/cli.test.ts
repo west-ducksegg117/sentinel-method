@@ -170,6 +170,52 @@ describe('CLI: sentinel command', () => {
     });
   });
 
+  // ── Output to file ──
+
+  describe('--output flag', () => {
+    beforeEach(() => {
+      fs.mkdirSync(path.join(PROJECT_DIR, 'src'), { recursive: true });
+      fs.writeFileSync(path.join(PROJECT_DIR, 'package.json'), '{}');
+      fs.writeFileSync(
+        path.join(PROJECT_DIR, 'src', 'app.ts'),
+        '/** App */\nexport const x = 1;\n',
+      );
+    });
+
+    afterEach(() => {
+      if (fs.existsSync(PROJECT_DIR)) {
+        fs.rmSync(PROJECT_DIR, { recursive: true });
+      }
+    });
+
+    test('deve salvar report JSON em arquivo com --output', () => {
+      const outputFile = path.join(PROJECT_DIR, 'report.json');
+      runCli(`validate ${PROJECT_DIR} -t 0 -m 0 -o ${outputFile}`);
+
+      expect(fs.existsSync(outputFile)).toBe(true);
+      const content = fs.readFileSync(outputFile, 'utf-8');
+      expect(() => JSON.parse(content)).not.toThrow();
+    });
+
+    test('deve salvar report HTML com extensão .html', () => {
+      const outputFile = path.join(PROJECT_DIR, 'report.html');
+      runCli(`validate ${PROJECT_DIR} -t 0 -m 0 -o ${outputFile}`);
+
+      expect(fs.existsSync(outputFile)).toBe(true);
+      const content = fs.readFileSync(outputFile, 'utf-8');
+      expect(content).toContain('<!DOCTYPE html>');
+    });
+
+    test('deve salvar report Markdown com extensão .md', () => {
+      const outputFile = path.join(PROJECT_DIR, 'report.md');
+      runCli(`validate ${PROJECT_DIR} -t 0 -m 0 -o ${outputFile}`);
+
+      expect(fs.existsSync(outputFile)).toBe(true);
+      const content = fs.readFileSync(outputFile, 'utf-8');
+      expect(content).toContain('# Sentinel Validation Report');
+    });
+  });
+
   // ── Help e version ──
 
   describe('help e version', () => {
