@@ -181,6 +181,73 @@ describe('Reporter', () => {
     expect(() => JSON.parse(report.content)).not.toThrow();
   });
 
+  // ── HTML Reporter ──
+
+  test('deve gerar HTML com doctype e estrutura completa', () => {
+    const html = reporter.generateHTML(sampleResult);
+
+    expect(html).toContain('<!DOCTYPE html>');
+    expect(html).toContain('<html');
+    expect(html).toContain('</html>');
+    expect(html).toContain('Sentinel Method Report');
+  });
+
+  test('deve incluir status badge no HTML', () => {
+    const html = reporter.generateHTML(sampleResult);
+    expect(html).toContain('PASSED');
+
+    sampleResult.success = false;
+    const htmlFailed = reporter.generateHTML(sampleResult);
+    expect(htmlFailed).toContain('FAILED');
+  });
+
+  test('deve incluir gráfico SVG de scores', () => {
+    const html = reporter.generateHTML(sampleResult);
+
+    expect(html).toContain('<svg');
+    expect(html).toContain('</svg>');
+    expect(html).toContain('Score Breakdown');
+  });
+
+  test('deve incluir tabela de issues no HTML', () => {
+    const html = reporter.generateHTML(sampleResult);
+
+    expect(html).toContain('<table');
+    expect(html).toContain('Issues');
+    expect(html).toContain('INJECTION_RISK');
+    expect(html).toContain('XSS_RISK');
+  });
+
+  test('deve incluir overview stats no HTML', () => {
+    const html = reporter.generateHTML(sampleResult);
+
+    expect(html).toContain('15'); // totalFiles
+    expect(html).toContain('Files Analyzed');
+    expect(html).toContain('Avg Score');
+  });
+
+  test('deve despachar para HTML quando formato é html', () => {
+    const report = reporter.format(sampleResult, 'html');
+
+    expect(report.type).toBe('html');
+    expect(report.content).toContain('<!DOCTYPE html>');
+  });
+
+  test('deve gerar HTML sem issues quando resultado limpo', () => {
+    sampleResult.results = [{
+      validator: 'Clean Check',
+      passed: true,
+      score: 100,
+      threshold: 80,
+      issues: [],
+      details: {},
+    }];
+
+    const html = reporter.generateHTML(sampleResult);
+    expect(html).toContain('<!DOCTYPE html>');
+    expect(html).not.toContain('<table');
+  });
+
   // ── Edge cases ──
 
   test('deve lidar com resultado sem issues', () => {
