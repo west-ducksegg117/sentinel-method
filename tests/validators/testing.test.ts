@@ -67,14 +67,17 @@ describe('TestingValidator', () => {
   });
 
   test('should count assertions in test files', () => {
-    const testFile = path.join(testDir, 'test.test.ts');
+    const srcFile = path.join(testDir, 'utils.ts');
+    const testFile = path.join(testDir, 'utils.test.ts');
+    fs.writeFileSync(srcFile, 'export const sum = (a: number, b: number) => a + b;');
     fs.writeFileSync(
       testFile,
       `
+import { sum } from './utils';
 test("multiple assertions", () => {
-  expect(1).toBe(1);
-  expect(2).toBe(2);
-  expect(3).toBe(3);
+  expect(sum(1, 2)).toBe(3);
+  expect(sum(0, 0)).toBe(0);
+  expect(sum(-1, 1)).toBe(0);
 });
 `,
     );

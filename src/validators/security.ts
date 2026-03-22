@@ -25,7 +25,13 @@ export class SecurityValidator {
     /document\.write\s*\(/gi,
   ];
 
+  // Config para níveis de severidade customizáveis
   constructor(private config: SentinelConfig) {}
+
+  /** Retorna o nível de segurança configurado */
+  getSecurityLevel(): string {
+    return this.config.securityLevel;
+  }
 
   validate(sourceDir: string): ValidatorResult {
     const issues: SecurityIssue[] = [];

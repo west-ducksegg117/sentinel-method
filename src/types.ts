@@ -29,7 +29,8 @@ export interface ValidatorResult {
   score?: number;
   threshold?: number;
   issues: ValidationIssue[];
-  details: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  details: Record<string, any>;
 }
 
 export interface ValidationIssue {
@@ -91,7 +92,7 @@ export interface ValidatorOptions {
 }
 
 export interface ReportFormat {
-  type: 'json' | 'markdown' | 'html';
+  type: 'json' | 'markdown' | 'html' | 'console';
   content: string;
   timestamp: string;
 }

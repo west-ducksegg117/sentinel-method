@@ -1,4 +1,4 @@
-import { ValidationResult, ReportFormat, ValidatorResult } from './types';
+import { ValidationResult, ReportFormat } from './types';
 
 export class Reporter {
   generateJSON(result: ValidationResult): string {
@@ -80,7 +80,7 @@ export class Reporter {
     return lines.join('\n');
   }
 
-  format(result: ValidationResult, format: 'json' | 'markdown' | 'console'): ReportFormat {
+  format(result: ValidationResult, format: 'json' | 'markdown' | 'console' | 'html'): ReportFormat {
     let content: string;
 
     switch (format) {
