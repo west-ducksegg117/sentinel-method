@@ -210,6 +210,61 @@ function printSummary(result: ValidationResult): void {
   console.log('');
 }
 
+// ── Watch mode helper ──
+
+/** Debounce para evitar execuções múltiplas em batch de saves */
+function debounce(fn: () => void, ms: number): () => void {
+  let timer: NodeJS.Timeout | null = null;
+  return () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(fn, ms);
+  };
+}
+
+/** Filtra issues por severidade mínima */
+function filterBySeverity(result: ValidationResult, minSeverity: string): ValidationResult {
+  const severityOrder: Record<string, number> = { error: 3, warning: 2, info: 1 };
+  const minLevel = severityOrder[minSeverity] ?? 0;
+
+  if (minLevel === 0) return result;
+
+  const filteredResults = result.results.map(vr => ({
+    ...vr,
+    issues: vr.issues.filter(i => (severityOrder[i.severity] ?? 0) >= minLevel),
+  }));
+
+  return { ...result, results: filteredResults };
+}
+
+/** Executa validação e exibe resultados (reutilizado por run e watch) */
+async function runValidation(
+  sentinel: Sentinel,
+  sourceDir: string,
+  options: Record<string, any>,
+): Promise<number> {
+  const result = await sentinel.validate(sourceDir);
+  const filtered = options.minSeverity ? filterBySeverity(result, options.minSeverity) : result;
+
+  if (options.json || options.format === 'json') {
+    console.log(JSON.stringify(filtered, null, 2));
+  } else if (options.format === 'markdown') {
+    console.log(filtered.report);
+  } else {
+    printHeader();
+
+    console.log(chalk.bold('  ─── Validators ───────────────────────────'));
+    console.log('');
+
+    for (const validatorResult of filtered.results) {
+      printValidatorResult(validatorResult);
+    }
+
+    printSummary(filtered);
+  }
+
+  return result.exitCode;
+}
+
 // ── CLI Program ──
 
 const program = new Command();
@@ -231,6 +286,8 @@ program
   .option('-m, --maintainability-score <n>', 'Minimum maintainability score (0-100)', '75')
   .option('--fail-on-warnings', 'Treat warnings as failures', false)
   .option('--json', 'Output raw JSON (shorthand for -f json)')
+  .option('--min-severity <level>', 'Filter issues by minimum severity: error, warning, info')
+  .option('-w, --watch', 'Watch mode — re-run validation on file changes', false)
   .action(async (directory: string, options: Record<string, any>) => {
     const sourceDir = path.resolve(directory);
 
@@ -244,26 +301,44 @@ program
     });
 
     try {
-      const result = await sentinel.validate(sourceDir);
+      // ── Watch mode ──
+      if (options.watch) {
+        console.log(chalk.cyan(`\n  👁  Watch mode — monitoring ${sourceDir}\n`));
+        console.log(chalk.gray('  Press Ctrl+C to stop\n'));
 
-      if (options.json || options.format === 'json') {
-        console.log(JSON.stringify(result, null, 2));
-      } else if (options.format === 'markdown') {
-        console.log(result.report);
-      } else {
-        printHeader();
+        // Primeira execução
+        await runValidation(sentinel, sourceDir, options);
 
-        console.log(chalk.bold('  ─── Validators ───────────────────────────'));
-        console.log('');
+        // Observar mudanças com debounce de 500ms
+        const rerun = debounce(async () => {
+          console.clear();
+          console.log(chalk.gray(`  ⟳ Re-validating at ${new Date().toLocaleTimeString()}...\n`));
+          try {
+            await runValidation(sentinel, sourceDir, options);
+          } catch (err) {
+            console.error(chalk.red(`  Watch error: ${err instanceof Error ? err.message : err}`));
+          }
+        }, 500);
 
-        for (const validatorResult of result.results) {
-          printValidatorResult(validatorResult);
-        }
+        const fs = await import('fs');
+        fs.watch(sourceDir, { recursive: true }, (_event, filename) => {
+          // Ignorar arquivos gerados / ocultos
+          if (!filename) return;
+          if (filename.includes('node_modules')) return;
+          if (filename.includes('.git')) return;
+          if (filename.includes('dist/')) return;
+          if (filename.includes('coverage/')) return;
+          rerun();
+        });
 
-        printSummary(result);
+        // Manter processo vivo
+        await new Promise(() => {});
+        return;
       }
 
-      process.exit(result.exitCode);
+      // ── Execução normal ──
+      const exitCode = await runValidation(sentinel, sourceDir, options);
+      process.exit(exitCode);
     } catch (error) {
       console.error(chalk.red(`\n  Error: ${error instanceof Error ? error.message : 'Unknown error'}\n`));
       process.exit(2);
