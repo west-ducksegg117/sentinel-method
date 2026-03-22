@@ -127,8 +127,8 @@ show_analysis_menu() {
   echo -e "  ${CYAN}7)${NC} 🪝 Instalar git hooks       ${DIM}(pre-commit + pre-push)${NC}" >&2
   echo -e "  ${CYAN}8)${NC} 🚀 TUDO                     ${DIM}(JSON + HTML + Markdown reports)${NC}" >&2
   echo "" >&2
-  read -rp "  Opção [1-8] (default: 1): " choice </dev/tty
-  echo "${choice:-1}"
+  read -rp "  Opção [1-8] (default: 8): " choice </dev/tty
+  echo "${choice:-8}"
 }
 
 # ── Validações ──
@@ -356,6 +356,23 @@ main() {
 
     mkdir -p "$OUTPUT_PATH"
     print_success "Destino: ${OUTPUT_PATH}"
+  elif [[ "$CHOICE" == "1" ]]; then
+    # Console only — mas perguntar se quer HTML também
+    echo "" >&2
+    read -rp "  Deseja também gerar report HTML? [S/n]: " also_html </dev/tty
+    also_html="${also_html:-S}"
+    if [[ "$also_html" =~ ^[Ss]$ ]]; then
+      print_step "Selecione onde salvar o report HTML"
+      print_info "Uma janela do Finder/Explorer será aberta..."
+      OUTPUT_PATH=$(pick_folder "🛡️ Sentinel — Selecione DESTINO do report" "$HOME/Documents")
+      if [ -z "$OUTPUT_PATH" ]; then
+        OUTPUT_PATH="${PROJECT_PATH}/sentinel-results"
+        print_warn "Nenhum destino selecionado. Usando: ${OUTPUT_PATH}"
+      fi
+      mkdir -p "$OUTPUT_PATH"
+      print_success "Destino: ${OUTPUT_PATH}"
+      CHOICE="1+html"
+    fi
   fi
 
   # ── Step 3: Execute ──
@@ -369,6 +386,10 @@ main() {
 
   case "$CHOICE" in
     1) run_validate_console "$PROJECT_PATH" ;;
+    "1+html")
+      run_validate_console "$PROJECT_PATH"
+      run_validate_html "$PROJECT_PATH" "$OUTPUT_PATH"
+      ;;
     2) run_validate_json "$PROJECT_PATH" "$OUTPUT_PATH" ;;
     3) run_validate_markdown "$PROJECT_PATH" "$OUTPUT_PATH" ;;
     4) run_validate_html "$PROJECT_PATH" "$OUTPUT_PATH" ;;
@@ -376,6 +397,7 @@ main() {
     6) run_init "$PROJECT_PATH" ;;
     7) run_hooks "$PROJECT_PATH" ;;
     8)
+      run_validate_console "$PROJECT_PATH"
       run_validate_json "$PROJECT_PATH" "$OUTPUT_PATH"
       run_validate_html "$PROJECT_PATH" "$OUTPUT_PATH"
       run_validate_markdown "$PROJECT_PATH" "$OUTPUT_PATH"
