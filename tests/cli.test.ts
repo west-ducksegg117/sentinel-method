@@ -189,6 +189,84 @@ describe('CLI: sentinel command', () => {
     });
   });
 
+  // ── Comando init ──
+
+  describe('init command', () => {
+    let initDir: string;
+
+    beforeEach(() => {
+      initDir = path.join(__dirname, '../test-init-project');
+      fs.mkdirSync(initDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      if (fs.existsSync(initDir)) {
+        fs.rmSync(initDir, { recursive: true });
+      }
+    });
+
+    test('deve criar .sentinelrc.json e .sentinelignore', () => {
+      try {
+        execSync(`node ${CLI_PATH} init`, {
+          encoding: 'utf8',
+          cwd: initDir,
+          timeout: 10000,
+          env: { ...process.env, FORCE_COLOR: '0' },
+        });
+      } catch (e: any) {
+        // init pode retornar stdout mesmo com exit code
+      }
+
+      expect(fs.existsSync(path.join(initDir, '.sentinelrc.json'))).toBe(true);
+      expect(fs.existsSync(path.join(initDir, '.sentinelignore'))).toBe(true);
+
+      const config = JSON.parse(fs.readFileSync(path.join(initDir, '.sentinelrc.json'), 'utf-8'));
+      expect(config.testingThreshold).toBe(80);
+      expect(config.securityLevel).toBe('strict');
+    });
+
+    test('não deve sobrescrever arquivos existentes sem --force', () => {
+      fs.writeFileSync(path.join(initDir, '.sentinelrc.json'), '{"custom": true}');
+
+      const output = (() => {
+        try {
+          return execSync(`node ${CLI_PATH} init`, {
+            encoding: 'utf8',
+            cwd: initDir,
+            timeout: 10000,
+            env: { ...process.env, FORCE_COLOR: '0' },
+          });
+        } catch (e: any) {
+          return e.stdout || '';
+        }
+      })();
+
+      // Arquivo original deve estar intacto
+      const config = JSON.parse(fs.readFileSync(path.join(initDir, '.sentinelrc.json'), 'utf-8'));
+      expect(config.custom).toBe(true);
+      expect(output).toContain('already exists');
+    });
+
+    test('deve sobrescrever com --force', () => {
+      fs.writeFileSync(path.join(initDir, '.sentinelrc.json'), '{"custom": true}');
+
+      try {
+        execSync(`node ${CLI_PATH} init --force`, {
+          encoding: 'utf8',
+          cwd: initDir,
+          timeout: 10000,
+          env: { ...process.env, FORCE_COLOR: '0' },
+        });
+      } catch (e: any) {
+        // ok
+      }
+
+      const config = JSON.parse(fs.readFileSync(path.join(initDir, '.sentinelrc.json'), 'utf-8'));
+      expect(config.testingThreshold).toBe(80);
+      expect(config.custom).toBeUndefined();
+    });
+  });
+
   // ── Erro: diretório inexistente ──
 
   describe('tratamento de erros', () => {

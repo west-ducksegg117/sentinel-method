@@ -366,4 +366,57 @@ program
     console.log('');
   });
 
+program
+  .command('init')
+  .description('Initialize Sentinel in the current directory (generates config and ignore files)')
+  .option('--force', 'Overwrite existing files', false)
+  .action((options: Record<string, any>) => {
+    const fs = require('fs');
+    const cwd = process.cwd();
+
+    printHeader();
+    console.log(chalk.bold('  Initializing Sentinel Method...\n'));
+
+    // ── .sentinelrc.json ──
+    const configPath = path.join(cwd, '.sentinelrc.json');
+    if (!options.force && fs.existsSync(configPath)) {
+      console.log(`  ${WARN} ${chalk.yellow('.sentinelrc.json already exists')} ${chalk.gray('(use --force to overwrite)')}`);
+    } else {
+      const defaultConfig = {
+        testingThreshold: 80,
+        securityLevel: 'strict',
+        performanceTarget: 'optimal',
+        maintainabilityScore: 75,
+        failOnWarnings: false,
+        reporters: ['console'],
+      };
+      fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2) + '\n');
+      console.log(`  ${PASS} ${chalk.green('Created .sentinelrc.json')}`);
+    }
+
+    // ── .sentinelignore ──
+    const ignorePath = path.join(cwd, '.sentinelignore');
+    if (!options.force && fs.existsSync(ignorePath)) {
+      console.log(`  ${WARN} ${chalk.yellow('.sentinelignore already exists')} ${chalk.gray('(use --force to overwrite)')}`);
+    } else {
+      const defaultIgnore = [
+        '# Sentinel Ignore — padrões de exclusão (estilo .gitignore)',
+        '# Diretórios de build e dependências são ignorados por default:',
+        '# node_modules/, .git/, dist/, coverage/, .nyc_output/, .*',
+        '',
+        '# Adicione seus padrões abaixo:',
+        '# *.min.js',
+        '# vendor/',
+        '# generated/',
+        '',
+      ].join('\n');
+      fs.writeFileSync(ignorePath, defaultIgnore);
+      console.log(`  ${PASS} ${chalk.green('Created .sentinelignore')}`);
+    }
+
+    console.log('');
+    console.log(`  ${INFO} Run ${chalk.cyan('sentinel validate')} to start the quality gate`);
+    console.log('');
+  });
+
 program.parse();
