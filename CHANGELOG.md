@@ -5,10 +5,14 @@ All notable changes to Sentinel Method will be documented in this file.
 ## [2.0.0] - 2026-03-22
 
 ### Added
-- **CLI binary** (`sentinel`) with Commander.js — validate, list, init commands
+- **CLI binary** (`sentinel`) with Commander.js — validate, list, init, hooks commands
 - **Watch mode** (`-w`) — re-run validation on file changes with debounce
 - **Severity filter** (`--min-severity`) — filter issues by error/warning/info
+- **Output to file** (`-o, --output`) — save report to .json, .md, or .html
 - **Init command** — scaffolds .sentinelrc.json and .sentinelignore
+- **Git hooks** (`sentinel hooks --install`) — pre-commit and pre-push integration
+- **ResultCache** — skip re-validation when files haven't changed (.sentinel-cache/)
+- **DiffAnalyzer** — identify changed files via git for incremental validation
 - **SentinelIgnore** — .gitignore-style file exclusion patterns (.sentinelignore)
 - **HTML Reporter** — self-contained report with inline SVG charts and CSS
 - **BaseValidator** abstract class — Template Method pattern, eliminates code duplication
@@ -26,7 +30,7 @@ All notable changes to Sentinel Method will be documented in this file.
 - **Config auto-detect** — .sentinelrc.json, .sentinelrc, sentinel.config.json, package.json
 - **Config schema validation** — structured errors/warnings, unknown field detection
 - **GitHub Actions CI** — matrix strategy Node 18/20
-- 263 tests with 96%+ coverage
+- 311 tests with 96%+ coverage
 
 ### Changed
 - Rewritten Sentinel engine with extensible validator array and error recovery

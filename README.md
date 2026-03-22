@@ -5,7 +5,7 @@ A production-grade quality gate framework for AI-generated code validation.
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.1+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-263_passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-311_passing-brightgreen.svg)](#testing)
 [![Coverage](https://img.shields.io/badge/Coverage-96%25-brightgreen.svg)](#testing)
 
 ## Overview
@@ -212,6 +212,52 @@ Default exclusions (always active): `node_modules/`, `.git/`, `dist/`, `coverage
 
 The `excludePatterns` in `.sentinelrc.json` also feeds into the ignore system.
 
+### Git Hooks
+
+```bash
+# Install pre-commit and pre-push hooks
+npx sentinel hooks --install
+
+# Custom thresholds for hooks
+npx sentinel hooks --install -t 90 -s strict
+
+# Check hook status
+npx sentinel hooks --status
+
+# Remove hooks
+npx sentinel hooks --remove
+```
+
+### Save Report to File
+
+```bash
+# Auto-detects format from extension
+npx sentinel validate ./src -o report.json
+npx sentinel validate ./src -o report.html
+npx sentinel validate ./src -o report.md
+```
+
+### Result Cache
+
+Sentinel caches validation results in `.sentinel-cache/`. When files haven't changed, subsequent runs can skip unchanged validators. Add `.sentinel-cache/` to your `.gitignore`.
+
+### Incremental Validation (DiffAnalyzer)
+
+```typescript
+import { DiffAnalyzer } from 'sentinel-method';
+
+const diff = new DiffAnalyzer('.');
+
+// Files changed in current PR
+const prFiles = diff.getDiffAgainst('main');
+
+// Only staged files (pre-commit)
+const staged = diff.getStagedFiles();
+
+// Filter to code files only
+const codeFiles = diff.filterCodeFiles(staged);
+```
+
 ## CI/CD Integration
 
 ### GitHub Actions
@@ -298,7 +344,7 @@ npm run test:coverage   # With coverage report
 npm run test:watch      # Watch mode
 ```
 
-Current metrics: **263 tests**, 96%+ statements, 87%+ branches, 96%+ functions.
+Current metrics: **311 tests**, 96%+ statements, 87%+ branches, 96%+ functions.
 
 ## Development
 
@@ -354,6 +400,38 @@ class PluginLoader {
   register(plugin: SentinelPlugin): void;
   loadFromDirectory(dirPath: string): number;
   createValidators(config: SentinelConfig): BaseValidator[];
+}
+
+class ResultCache {
+  constructor(projectDir: string);
+  save(result: ValidationResult, fileHashes: Record<string, string>): void;
+  load(): CacheEntry | null;
+  hasChanges(currentHashes: Record<string, string>): boolean;
+  static computeHashes(files: string[], baseDir: string): Record<string, string>;
+  clear(): void;
+  exists(): boolean;
+}
+
+class HookManager {
+  constructor(projectDir: string);
+  installPreCommit(options?: HookOptions): InstallResult;
+  installPrePush(options?: HookOptions): InstallResult;
+  installAll(options?: HookOptions): { preCommit: InstallResult; prePush: InstallResult };
+  remove(hookName: string): boolean;
+  removeAll(): { preCommit: boolean; prePush: boolean };
+  isInstalled(hookName: string): boolean;
+  listInstalled(): string[];
+}
+
+class DiffAnalyzer {
+  constructor(projectDir: string);
+  getStagedFiles(): string[];
+  getModifiedFiles(): string[];
+  getChangedFiles(): string[];
+  getDiffAgainst(base: string): string[];
+  getLastCommitFiles(): string[];
+  filterCodeFiles(files: string[]): string[];
+  toAbsolutePaths(files: string[]): string[];
 }
 ```
 
