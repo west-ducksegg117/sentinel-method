@@ -156,15 +156,25 @@ export class SecurityValidator extends BaseValidator {
 
         for (let lineNum = 0; lineNum < lines.length; lineNum++) {
           const line = lines[lineNum];
+          const trimmed = line.trim();
+
+          // Pular linhas de import/require — contêm ../ legitimamente
+          const isImportLine = /^\s*(import\s|export\s.*from\s|require\s*\(|from\s+['"])/.test(line);
 
           for (const rule of this.detectionRules) {
             // Em modo não-strict, pular path traversal (muito ruidoso)
             if (!isStrict && rule.code === 'PATH_TRAVERSAL') continue;
 
+            // Path traversal em import/require é falso positivo
+            if (rule.code === 'PATH_TRAVERSAL' && isImportLine) continue;
+
+            // Pular detecção de secrets em linhas de type/interface/const type
+            if (rule.type === 'hardcoded-secret' && /^\s*(type|interface|\/\/|\/\*|\*)\s/.test(line)) continue;
+
             // Reset do regex global
             rule.pattern.lastIndex = 0;
 
-            if (rule.pattern.test(line)) {
+            if (rule.pattern.test(trimmed)) {
               const cweInfo = CWE_DATABASE[rule.cweId];
               const severity = cweInfo?.severity ?? 'warning';
 

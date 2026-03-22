@@ -102,8 +102,9 @@ export class CodeStyleValidator extends BaseValidator {
             }
           }
 
-          // console.log em produção (não em test files)
-          if (/console\.(log|warn|error|debug|info)\s*\(/.test(line)) {
+          // console.log em produção (não em test files, não em CLI/bin)
+          const isCli = /cli\.|bin\.|command/.test(relativeFile.toLowerCase());
+          if (!isCli && /console\.(log|warn|error|debug|info)\s*\(/.test(line)) {
             consoleLogs++;
             issues.push(this.createIssue('warning', 'CONSOLE_STATEMENT',
               `console statement found in production code`,
