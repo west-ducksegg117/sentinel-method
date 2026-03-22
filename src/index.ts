@@ -4,6 +4,7 @@ export { TestingValidator } from './validators/testing';
 export { SecurityValidator } from './validators/security';
 export { PerformanceValidator } from './validators/performance';
 export { MaintainabilityValidator } from './validators/maintainability';
+export { DependencyValidator } from './validators/dependency';
 export { Reporter } from './reporter';
 export { ConfigLoader } from './config';
 export { FileCollector } from './file-collector';
