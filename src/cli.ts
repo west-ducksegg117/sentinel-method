@@ -90,8 +90,96 @@ function printValidatorResult(result: ValidatorResult): void {
   }
 }
 
+/** Formata tabela de scores dos validators */
+function printScoreTable(results: ValidatorResult[]): void {
+  const scored = results.filter(r => r.score !== undefined);
+  if (scored.length === 0) return;
+
+  console.log('');
+  console.log(chalk.bold('  ─── Score Breakdown ──────────────────────'));
+  console.log('');
+  console.log(chalk.gray('  Validator               Score  Threshold  Status'));
+  console.log(chalk.gray('  ───────────────────────  ─────  ─────────  ──────'));
+
+  for (const r of scored) {
+    const name = r.validator.padEnd(23);
+    const score = String(r.score ?? 0).padStart(3) + '%';
+    const threshold = r.threshold !== undefined ? String(r.threshold).padStart(5) + '%' : '    —';
+    const status = r.passed ? chalk.green('PASS') : chalk.red('FAIL');
+
+    let scoreColor: (s: string) => string;
+    if ((r.score ?? 0) >= 80) scoreColor = chalk.green;
+    else if ((r.score ?? 0) >= 60) scoreColor = chalk.yellow;
+    else scoreColor = chalk.red;
+
+    console.log(`  ${chalk.white(name)}  ${scoreColor(score)}    ${chalk.gray(threshold)}  ${status}`);
+  }
+}
+
+/** Calcula e exibe o score agregado */
+function printAggregateScore(results: ValidatorResult[]): void {
+  const scored = results.filter(r => r.score !== undefined);
+  if (scored.length === 0) return;
+
+  const avgScore = Math.round(scored.reduce((sum, r) => sum + (r.score ?? 0), 0) / scored.length);
+  const minScore = Math.min(...scored.map(r => r.score ?? 0));
+  const maxScore = Math.max(...scored.map(r => r.score ?? 0));
+
+  console.log('');
+  console.log(`  ${BULLET} Aggregate score: ${scoreBar(avgScore, 20)} ${scoreGrade(avgScore)}`);
+  console.log(chalk.gray(`    min: ${minScore}%  max: ${maxScore}%  validators: ${scored.length}`));
+}
+
+/** Mostra detalhes relevantes de cada validator */
+function printValidatorDetails(results: ValidatorResult[]): void {
+  const detailEntries: string[] = [];
+
+  for (const r of results) {
+    const d = r.details;
+    if (!d || Object.keys(d).length === 0) continue;
+
+    // Extrair métricas-chave de cada validator
+    if (r.validator === 'Testing Quality' && d.testFiles !== undefined) {
+      detailEntries.push(`  ${INFO} Testing: ${d.testFiles} test files, ${d.assertions ?? 0} assertions, ${d.edgeCases ?? 0} edge cases`);
+    }
+    if (r.validator === 'Security Scanning' && d.vulnerabilitiesFound !== undefined) {
+      detailEntries.push(`  ${INFO} Security: ${d.vulnerabilitiesFound} vulns, ${d.injectionRisks ?? 0} injection risks, ${d.hardcodedSecrets ?? 0} secrets`);
+    }
+    if (r.validator === 'Performance Analysis') {
+      if (d.avgComplexity !== undefined) {
+        detailEntries.push(`  ${INFO} Performance: avg complexity ${d.avgComplexity}, ${d.memoryIssues ?? 0} memory issues`);
+      }
+    }
+    if (r.validator === 'Maintainability Index') {
+      if (d.maintainabilityIndex !== undefined) {
+        detailEntries.push(`  ${INFO} Maintainability: index ${d.maintainabilityIndex}, ${d.cyclomaticComplexity ?? 0} cyclomatic complexity`);
+      }
+    }
+    if (r.validator === 'Dependency Health') {
+      if (d.totalDeps !== undefined) {
+        detailEntries.push(`  ${INFO} Dependencies: ${d.totalDeps} total, ${d.unusedDeps ?? 0} unused, ${d.wildcardVersions ?? 0} wildcard`);
+      }
+    }
+  }
+
+  if (detailEntries.length > 0) {
+    console.log('');
+    console.log(chalk.bold('  ─── Details ──────────────────────────────'));
+    console.log('');
+    for (const entry of detailEntries) {
+      console.log(entry);
+    }
+  }
+}
+
 /** Formata o summary final */
 function printSummary(result: ValidationResult): void {
+  // Tabela de scores
+  printScoreTable(result.results);
+
+  // Detalhes dos validators
+  printValidatorDetails(result.results);
+
   console.log('');
   console.log(chalk.bold('  ─── Summary ──────────────────────────────'));
   console.log('');
@@ -104,6 +192,12 @@ function printSummary(result: ValidationResult): void {
   if (warnings > 0) {
     console.log(`  ${BULLET} Warnings:        ${chalk.yellow.bold(String(warnings))}`);
   }
+
+  // Score agregado
+  printAggregateScore(result.results);
+
+  console.log('');
+  console.log(`  ${BULLET} Duration:        ${chalk.bold(result.timestamp)}`);
 
   console.log('');
 
