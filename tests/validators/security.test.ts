@@ -66,7 +66,7 @@ describe('SecurityValidator', () => {
     const result = validator.validate(testDir);
 
     expect(result.passed).toBe(false);
-    expect(result.issues.some(i => i.code === 'INJECTION_RISK')).toBe(true);
+    expect(result.issues.some(i => i.code === 'INJECTION_EVAL')).toBe(true);
     expect(result.details.injectionRisks).toBeGreaterThan(0);
   });
 
@@ -80,7 +80,7 @@ describe('SecurityValidator', () => {
     const result = validator.validate(testDir);
 
     expect(result.passed).toBe(false);
-    expect(result.issues.some(i => i.code === 'INJECTION_RISK')).toBe(true);
+    expect(result.issues.some(i => i.code === 'INJECTION_FUNC')).toBe(true);
   });
 
   test('deve detectar innerHTML como risco de XSS', () => {
@@ -92,9 +92,8 @@ describe('SecurityValidator', () => {
     const validator = new SecurityValidator(config);
     const result = validator.validate(testDir);
 
-    // innerHTML aparece tanto em injectionPatterns quanto xssPatterns
     expect(result.passed).toBe(false);
-    expect(result.issues.length).toBeGreaterThan(0);
+    expect(result.issues.some(i => i.code === 'XSS_INNERHTML')).toBe(true);
   });
 
   test('deve detectar dangerouslySetInnerHTML (React)', () => {
@@ -107,7 +106,7 @@ describe('SecurityValidator', () => {
     const result = validator.validate(testDir);
 
     expect(result.passed).toBe(false);
-    expect(result.issues.some(i => i.code === 'INJECTION_RISK')).toBe(true);
+    expect(result.issues.some(i => i.code === 'XSS_REACT')).toBe(true);
   });
 
   test('deve detectar document.write como XSS', () => {
@@ -120,7 +119,7 @@ describe('SecurityValidator', () => {
     const result = validator.validate(testDir);
 
     expect(result.passed).toBe(false);
-    expect(result.issues.some(i => i.code === 'XSS_RISK')).toBe(true);
+    expect(result.issues.some(i => i.code === 'XSS_DOCWRITE')).toBe(true);
   });
 
   test('deve detectar insertAdjacentHTML como XSS', () => {
@@ -133,7 +132,7 @@ describe('SecurityValidator', () => {
     const result = validator.validate(testDir);
 
     expect(result.passed).toBe(false);
-    expect(result.issues.some(i => i.code === 'XSS_RISK')).toBe(true);
+    expect(result.issues.some(i => i.code === 'XSS_ADJACENT')).toBe(true);
   });
 
   // ── Detecção de secrets hardcoded ──
@@ -151,7 +150,7 @@ describe('SecurityValidator', () => {
     const result = validator.validate(testDir);
 
     expect(result.passed).toBe(false);
-    expect(result.issues.some(i => i.code === 'HARDCODED_SECRET')).toBe(true);
+    expect(result.issues.some(i => i.code === 'SECRET_PASSWORD')).toBe(true);
     expect(result.details.hardcodedSecrets).toBeGreaterThan(0);
   });
 
@@ -165,7 +164,7 @@ describe('SecurityValidator', () => {
     const result = validator.validate(testDir);
 
     expect(result.passed).toBe(false);
-    expect(result.issues.some(i => i.code === 'HARDCODED_SECRET')).toBe(true);
+    expect(result.issues.some(i => i.code === 'SECRET_APIKEY')).toBe(true);
   });
 
   test('deve detectar token hardcoded', () => {
@@ -178,7 +177,7 @@ describe('SecurityValidator', () => {
     const result = validator.validate(testDir);
 
     expect(result.passed).toBe(false);
-    expect(result.issues.some(i => i.code === 'HARDCODED_SECRET')).toBe(true);
+    expect(result.issues.some(i => i.code === 'SECRET_TOKEN')).toBe(true);
   });
 
   test('deve detectar private key hardcoded', () => {
@@ -191,7 +190,133 @@ describe('SecurityValidator', () => {
     const result = validator.validate(testDir);
 
     expect(result.passed).toBe(false);
-    expect(result.issues.some(i => i.code === 'HARDCODED_SECRET')).toBe(true);
+    expect(result.issues.some(i => i.code === 'SECRET_PRIVKEY')).toBe(true);
+  });
+
+  // ── OWASP CWE Mapping ──
+
+  test('deve incluir CWE-95 para eval injection', () => {
+    const file = path.join(testDir, 'cwe-eval.ts');
+    fs.writeFileSync(file, 'const result = eval(input);\n');
+
+    const validator = new SecurityValidator(config);
+    const result = validator.validate(testDir);
+
+    const issue = result.issues.find(i => i.code === 'INJECTION_EVAL');
+    expect(issue).toBeDefined();
+    expect((issue as any).cwe).toBe('CWE-95');
+    expect(issue!.message).toContain('CWE-95');
+  });
+
+  test('deve incluir CWE-79 para XSS', () => {
+    const file = path.join(testDir, 'cwe-xss.ts');
+    fs.writeFileSync(file, 'element.insertAdjacentHTML("beforeend", data);\n');
+
+    const validator = new SecurityValidator(config);
+    const result = validator.validate(testDir);
+
+    const issue = result.issues.find(i => i.code === 'XSS_ADJACENT');
+    expect(issue).toBeDefined();
+    expect((issue as any).cwe).toBe('CWE-79');
+  });
+
+  test('deve incluir CWE-798 para hardcoded credentials', () => {
+    const file = path.join(testDir, 'cwe-secret.ts');
+    fs.writeFileSync(file, 'const password = "admin123";\n');
+
+    const validator = new SecurityValidator(config);
+    const result = validator.validate(testDir);
+
+    const issue = result.issues.find(i => i.code === 'SECRET_PASSWORD');
+    expect(issue).toBeDefined();
+    expect((issue as any).cwe).toBe('CWE-798');
+  });
+
+  test('deve categorizar issues por OWASP Top 10', () => {
+    const file = path.join(testDir, 'owasp.ts');
+    fs.writeFileSync(file, `
+      const result = eval(input);
+      const password = "secret";
+      element.insertAdjacentHTML("beforeend", data);
+    `);
+
+    const validator = new SecurityValidator(config);
+    const result = validator.validate(testDir);
+
+    const owasp = result.details.owaspCategories;
+    expect(owasp).toBeDefined();
+    // A03:2021 (Injection) e A02:2021 (Crypto/Secrets) devem estar presentes
+    expect(owasp['A03:2021']).toBeGreaterThan(0);
+    expect(owasp['A02:2021']).toBeGreaterThan(0);
+  });
+
+  test('deve retornar info CWE estática via getCweInfo', () => {
+    const info = SecurityValidator.getCweInfo('CWE-95');
+    expect(info).toBeDefined();
+    expect(info!.owasp).toBe('A03:2021');
+    expect(info!.description).toContain('Eval Injection');
+  });
+
+  test('deve retornar undefined para CWE desconhecido', () => {
+    const info = SecurityValidator.getCweInfo('CWE-99999');
+    expect(info).toBeUndefined();
+  });
+
+  test('deve expor regras de detecção via getDetectionRules', () => {
+    const validator = new SecurityValidator(config);
+    const rules = validator.getDetectionRules();
+
+    expect(rules.length).toBeGreaterThan(10);
+    // Cada regra deve ter todos os campos
+    for (const rule of rules) {
+      expect(rule.pattern).toBeDefined();
+      expect(rule.code).toBeDefined();
+      expect(rule.cweId).toBeDefined();
+      expect(rule.message).toBeDefined();
+      expect(rule.suggestion).toBeDefined();
+    }
+  });
+
+  // ── Novos padrões de detecção ──
+
+  test('deve detectar MD5 como crypto fraco', () => {
+    const file = path.join(testDir, 'crypto.ts');
+    fs.writeFileSync(file, 'const hash = createHash("md5").update(data).digest("hex");\n');
+
+    const validator = new SecurityValidator(config);
+    const result = validator.validate(testDir);
+
+    expect(result.issues.some(i => i.code === 'WEAK_CRYPTO_MD5')).toBe(true);
+    expect((result.issues.find(i => i.code === 'WEAK_CRYPTO_MD5') as any).cwe).toBe('CWE-327');
+  });
+
+  test('deve detectar SHA-1 como crypto depreciado', () => {
+    const file = path.join(testDir, 'sha1.ts');
+    fs.writeFileSync(file, 'const hash = createHash("sha1").update(data).digest("hex");\n');
+
+    const validator = new SecurityValidator(config);
+    const result = validator.validate(testDir);
+
+    expect(result.issues.some(i => i.code === 'WEAK_CRYPTO_SHA1')).toBe(true);
+  });
+
+  // ── Modo permissive ──
+
+  test('deve ser mais leniente em modo permissive', () => {
+    const file = path.join(testDir, 'permissive.ts');
+    fs.writeFileSync(file, `
+      const password = "admin123";
+      element.insertAdjacentHTML("beforeend", data);
+    `);
+
+    const permissiveConfig = { ...config, securityLevel: 'permissive' as const };
+    const validator = new SecurityValidator(permissiveConfig);
+    const result = validator.validate(testDir);
+
+    // Permissive só falha com injection risks, não com secrets/XSS
+    expect(result.passed).toBe(true);
+    // Mas as issues continuam sendo reportadas
+    expect(result.issues.length).toBeGreaterThan(0);
   });
 
   // ── Múltiplas vulnerabilidades ──
@@ -223,7 +348,6 @@ describe('SecurityValidator', () => {
     const validator = new SecurityValidator(config);
     const result = validator.validate(testDir);
 
-    // 1 hardcoded secret = -30 pontos → score 70
     expect(result.details.securityScore).toBeLessThanOrEqual(70);
     expect(result.details.securityScore).toBeGreaterThan(0);
   });
@@ -236,11 +360,9 @@ describe('SecurityValidator', () => {
     fs.mkdirSync(hiddenDir, { recursive: true });
     fs.mkdirSync(nodeModulesDir, { recursive: true });
 
-    // Vulnerabilidades em diretórios que devem ser ignorados
     fs.writeFileSync(path.join(hiddenDir, 'bad.ts'), 'const x = eval("1+1");');
     fs.writeFileSync(path.join(nodeModulesDir, 'bad.ts'), 'const token = "leaked_token";');
 
-    // Arquivo limpo no diretório principal
     const cleanFile = path.join(testDir, 'clean.ts');
     fs.writeFileSync(cleanFile, 'export const x = 42;');
 
@@ -258,21 +380,6 @@ describe('SecurityValidator', () => {
     expect(result.passed).toBe(true);
     expect(result.issues).toHaveLength(0);
     expect(result.details.securityScore).toBe(100);
-  });
-
-  test('deve incluir CWE reference nas issues de injeção', () => {
-    const file = path.join(testDir, 'cwe.ts');
-    fs.writeFileSync(file, `
-      const result = eval(input);
-    `);
-
-    const validator = new SecurityValidator(config);
-    const result = validator.validate(testDir);
-
-    const injectionIssue = result.issues.find(i => i.code === 'INJECTION_RISK');
-    expect(injectionIssue).toBeDefined();
-    // CWE field existe na SecurityIssue
-    expect((injectionIssue as any).cwe).toBe('CWE-95');
   });
 
   test('deve incluir sugestão de correção em cada issue', () => {
@@ -297,14 +404,14 @@ describe('SecurityValidator', () => {
     fs.writeFileSync(file, [
       'const a = 1;',
       'const b = 2;',
-      'const c = eval("3");',  // linha 3
+      'const c = eval("3");',
       'const d = 4;',
     ].join('\n'));
 
     const validator = new SecurityValidator(config);
     const result = validator.validate(testDir);
 
-    const issue = result.issues.find(i => i.code === 'INJECTION_RISK');
+    const issue = result.issues.find(i => i.code === 'INJECTION_EVAL');
     expect(issue).toBeDefined();
     expect(issue!.line).toBe(3);
   });
