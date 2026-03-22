@@ -80,6 +80,45 @@ describe('Sentinel', () => {
     expect(result.exitCode).toBeDefined();
   });
 
+  test('deve incluir duration no resultado', async () => {
+    const testFile = path.join(testDir, 'test.ts');
+    fs.writeFileSync(testFile, 'const x = 1;');
+
+    const sentinel = new Sentinel();
+    const result = await sentinel.validate(testDir);
+
+    expect(result.duration).toBeDefined();
+    expect(result.duration).toBeGreaterThanOrEqual(0);
+  });
+
+  test('deve recuperar de erro em validator sem interromper pipeline', async () => {
+    const testFile = path.join(testDir, 'test.ts');
+    fs.writeFileSync(testFile, 'const x = 1;');
+
+    const sentinel = new Sentinel();
+
+    // Registrar validator que lança exceção
+    const failingValidator = {
+      name: 'Failing Validator',
+      validate: () => { throw new Error('Validator explodiu'); },
+      config: {} as any,
+    } as any;
+
+    sentinel.registerValidator(failingValidator);
+
+    const results = await sentinel.runPipeline(testDir);
+
+    // 7 nativos + 1 failing = 8
+    expect(results).toHaveLength(8);
+
+    // O último resultado deve ser o do validator com erro
+    const failResult = results[7];
+    expect(failResult.validator).toBe('Failing Validator');
+    expect(failResult.passed).toBe(false);
+    expect(failResult.issues[0].code).toBe('VALIDATOR_ERROR');
+    expect(failResult.details.error).toBe(true);
+  });
+
   test('should handle validation with test files', async () => {
     const srcFile = path.join(testDir, 'src.ts');
     const testFile = path.join(testDir, 'src.test.ts');

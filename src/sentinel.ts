@@ -19,8 +19,10 @@ import { ConfigLoader } from './config';
  * - 7 validators nativos (testing, security, performance, maintainability,
  *   dependency, documentation, code-style)
  * - Execução paralela via Promise.all
+ * - Error recovery por validator (um erro não interrompe os demais)
  * - Validators customizados via registerValidator()
  * - FileCollector centralizado para I/O otimizado
+ * - Timing de execução (duration em ms)
  */
 export class Sentinel {
   private config: SentinelConfig;
@@ -61,8 +63,11 @@ export class Sentinel {
       throw new Error(`Source directory does not exist: ${sourceDir}`);
     }
 
+    const startTime = Date.now();
     const results = await this.runPipeline(sourceDir);
-    const validationResult = this.aggregateResults(sourceDir, results);
+    const duration = Date.now() - startTime;
+
+    const validationResult = this.aggregateResults(sourceDir, results, duration);
     const report = this.generateReport(validationResult);
 
     return {
@@ -73,17 +78,41 @@ export class Sentinel {
 
   /**
    * Executa todos os validators em paralelo.
-   * Cada validator é wrappado em uma Promise para execução concorrente.
+   * Cada validator é wrappado com error recovery — se um validator
+   * falhar com exceção, gera um resultado de erro sem interromper os demais.
    */
   async runPipeline(sourceDir: string): Promise<ValidatorResult[]> {
     const validatorPromises = this.validators.map(
-      (validator) => Promise.resolve(validator.validate(sourceDir)),
+      (validator) => Promise.resolve().then(() => {
+        try {
+          return validator.validate(sourceDir);
+        } catch (error) {
+          // Error recovery: gera resultado de falha para o validator
+          return {
+            validator: validator.name,
+            passed: false,
+            issues: [{
+              severity: 'error' as const,
+              code: 'VALIDATOR_ERROR',
+              message: `Validator falhou: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+            }],
+            details: {
+              error: true,
+              errorMessage: error instanceof Error ? error.message : String(error),
+            },
+          };
+        }
+      }),
     );
 
     return Promise.all(validatorPromises);
   }
 
-  private aggregateResults(sourceDir: string, results: ValidatorResult[]): ValidationResult {
+  private aggregateResults(
+    sourceDir: string,
+    results: ValidatorResult[],
+    duration: number,
+  ): ValidationResult {
     let passedChecks = 0;
     let failedChecks = 0;
     let warnings = 0;
@@ -112,6 +141,7 @@ export class Sentinel {
       success,
       timestamp: new Date().toISOString(),
       sourceDirectory: sourceDir,
+      duration,
       summary: {
         totalFiles,
         passedChecks,

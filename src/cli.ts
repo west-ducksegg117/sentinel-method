@@ -197,7 +197,15 @@ function printSummary(result: ValidationResult): void {
   printAggregateScore(result.results);
 
   console.log('');
-  console.log(`  ${BULLET} Duration:        ${chalk.bold(result.timestamp)}`);
+
+  // Mostrar duração quando disponível
+  if (result.duration !== undefined) {
+    const durationStr = result.duration >= 1000
+      ? `${(result.duration / 1000).toFixed(2)}s`
+      : `${result.duration}ms`;
+    console.log(`  ${BULLET} Duration:        ${chalk.bold(durationStr)}`);
+  }
+  console.log(`  ${BULLET} Timestamp:       ${chalk.gray(result.timestamp)}`);
 
   console.log('');
 

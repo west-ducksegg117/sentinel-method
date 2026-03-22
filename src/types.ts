@@ -12,6 +12,7 @@ export interface ValidationResult {
   success: boolean;
   timestamp: string;
   sourceDirectory: string;
+  duration?: number; // ms
   summary: {
     totalFiles: number;
     passedChecks: number;
