@@ -1,12 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ValidatorResult, ValidationIssue, SentinelConfig } from '../types';
+import { SentinelIgnore } from '../ignore';
 
 /**
  * Classe base abstrata para todos os validators do Sentinel.
  *
  * Centraliza lógica comum: traversal de diretório, filtragem de
  * arquivos e estrutura padrão do resultado de validação.
+ *
+ * Respeita padrões de exclusão definidos em .sentinelignore.
  */
 export abstract class BaseValidator {
   /** Nome exibido nos relatórios */
@@ -19,18 +22,21 @@ export abstract class BaseValidator {
 
   /**
    * Percorre recursivamente um diretório coletando caminhos de arquivos.
-   * Ignora node_modules, diretórios ocultos (.) e arquivos binários.
+   * Respeita padrões definidos em .sentinelignore (estilo .gitignore).
    */
   protected getAllFiles(dir: string): string[] {
+    const ignore = SentinelIgnore.fromFile(dir);
     const files: string[] = [];
 
     const traverse = (currentDir: string): void => {
       const entries = fs.readdirSync(currentDir, { withFileTypes: true });
 
       for (const entry of entries) {
-        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-
         const fullPath = path.join(currentDir, entry.name);
+        const relativePath = path.relative(dir, fullPath);
+
+        // Respeitar .sentinelignore
+        if (ignore.isIgnored(relativePath)) continue;
 
         if (entry.isDirectory()) {
           traverse(fullPath);

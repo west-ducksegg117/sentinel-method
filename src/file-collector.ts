@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { SentinelIgnore } from './ignore';
 
 /**
  * Centraliza toda a operação de I/O do Sentinel.
@@ -7,7 +8,7 @@ import * as path from 'path';
  * Responsável por:
  * - Coletar arquivos de um diretório recursivamente
  * - Cachear conteúdo de arquivos para evitar leituras duplicadas
- * - Filtrar por extensão e padrões de exclusão
+ * - Filtrar por extensão e padrões de exclusão (.sentinelignore)
  * - Contar arquivos por tipo (source, test, config)
  */
 export class FileCollector {
@@ -17,10 +18,12 @@ export class FileCollector {
   /** Lista de arquivos coletados */
   private collectedFiles: string[] = [];
 
-  /** Padrões de diretórios a serem ignorados */
-  private readonly excludeDirs = ['node_modules', 'dist', 'coverage', '.nyc_output'];
+  /** Parser de .sentinelignore */
+  private ignore: SentinelIgnore;
 
-  constructor(private readonly sourceDir: string) {}
+  constructor(private readonly sourceDir: string) {
+    this.ignore = SentinelIgnore.fromFile(sourceDir);
+  }
 
   /**
    * Coleta todos os arquivos do diretório raiz.
@@ -114,18 +117,25 @@ export class FileCollector {
     return this.readFile(fullPath);
   }
 
-  /** Traversal recursivo do diretório */
+  /** Retorna a instância do SentinelIgnore para acesso externo */
+  getIgnore(): SentinelIgnore {
+    return this.ignore;
+  }
+
+  /** Traversal recursivo do diretório, respeitando .sentinelignore */
   private traverse(dir: string): string[] {
     const files: string[] = [];
 
     const entries = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const entry of entries) {
-      if (entry.name.startsWith('.') || this.excludeDirs.includes(entry.name)) {
+      const fullPath = path.join(dir, entry.name);
+      const relativePath = path.relative(this.sourceDir, fullPath);
+
+      // Verificar se deve ser ignorado pelo .sentinelignore
+      if (this.ignore.isIgnored(relativePath)) {
         continue;
       }
-
-      const fullPath = path.join(dir, entry.name);
 
       if (entry.isDirectory()) {
         files.push(...this.traverse(fullPath));
