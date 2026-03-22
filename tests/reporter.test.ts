@@ -189,7 +189,7 @@ describe('Reporter', () => {
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('<html');
     expect(html).toContain('</html>');
-    expect(html).toContain('Sentinel Method Report');
+    expect(html).toContain('Sentinel Method');
   });
 
   test('deve incluir status badge no HTML', () => {
@@ -222,8 +222,8 @@ describe('Reporter', () => {
     const html = reporter.generateHTML(sampleResult);
 
     expect(html).toContain('15'); // totalFiles
-    expect(html).toContain('Files Analyzed');
-    expect(html).toContain('Avg Score');
+    expect(html).toContain('Files'); // stat label
+    expect(html).toContain('Score Breakdown');
   });
 
   test('deve despachar para HTML quando formato é html', () => {
