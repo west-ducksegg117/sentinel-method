@@ -2,10 +2,66 @@ import * as fs from 'fs';
 import { ValidatorResult, ValidationIssue, MaintainabilityMetrics, SentinelConfig } from '../types';
 import { BaseValidator } from './base';
 
+/**
+ * Métricas de Halstead para análise de complexidade de software.
+ *
+ * Baseado em: Halstead, M.H. (1977). Elements of Software Science.
+ * As métricas medem a "informação" contida no código-fonte.
+ */
+export interface HalsteadMetrics {
+  /** Operadores distintos (η1) */
+  uniqueOperators: number;
+  /** Operandos distintos (η2) */
+  uniqueOperands: number;
+  /** Total de operadores (N1) */
+  totalOperators: number;
+  /** Total de operandos (N2) */
+  totalOperands: number;
+  /** Vocabulário do programa: η = η1 + η2 */
+  vocabulary: number;
+  /** Comprimento do programa: N = N1 + N2 */
+  length: number;
+  /** Volume: V = N × log2(η) */
+  volume: number;
+  /** Dificuldade: D = (η1 / 2) × (N2 / η2) */
+  difficulty: number;
+  /** Esforço: E = D × V */
+  effort: number;
+  /** Tempo estimado em segundos: T = E / 18 (Stroud number) */
+  estimatedTime: number;
+  /** Bugs estimados: B = V / 3000 */
+  estimatedBugs: number;
+}
+
 export class MaintainabilityValidator extends BaseValidator {
   readonly name = 'Maintainability Checker';
   private readonly maxFunctionLength = 50;
   private readonly maxCyclomaticComplexity = 10;
+
+  /** Operadores TypeScript/JavaScript reconhecidos para Halstead */
+  private readonly operators = new Set([
+    // Aritméticos
+    '+', '-', '*', '/', '%', '**',
+    // Atribuição
+    '=', '+=', '-=', '*=', '/=', '%=', '**=',
+    // Comparação
+    '==', '!=', '===', '!==', '<', '>', '<=', '>=',
+    // Lógicos
+    '&&', '||', '!', '??',
+    // Bitwise
+    '&', '|', '^', '~', '<<', '>>', '>>>',
+    // Ternário
+    '?', ':',
+    // Acesso
+    '.', '?.', '...',
+    // Outros
+    '=>', 'typeof', 'instanceof', 'in', 'new', 'delete', 'void',
+    // Keywords como operadores
+    'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break',
+    'continue', 'return', 'throw', 'try', 'catch', 'finally',
+    'import', 'export', 'from', 'as', 'default',
+    'const', 'let', 'var', 'function', 'class', 'async', 'await',
+  ]);
 
   constructor(config: SentinelConfig) {
     super(config);
@@ -20,6 +76,63 @@ export class MaintainabilityValidator extends BaseValidator {
     const passed = score >= threshold && issues.filter(i => i.severity === 'error').length === 0;
 
     return this.buildResult(passed, issues, metrics, score, threshold);
+  }
+
+  /**
+   * Calcula métricas de Halstead para um bloco de código.
+   * Análise léxica simplificada mas eficaz para TypeScript/JavaScript.
+   */
+  calculateHalstead(code: string): HalsteadMetrics {
+    const operatorCounts = new Map<string, number>();
+    const operandCounts = new Map<string, number>();
+
+    // Remover comentários e strings para análise limpa
+    const cleanCode = code
+      .replace(/\/\*[\s\S]*?\*\//g, '')   // block comments
+      .replace(/\/\/.*/g, '')              // line comments
+      .replace(/(['"`])(?:(?!\1|\\).|\\.)*\1/g, '"STR"'); // strings → placeholder
+
+    // Tokenizar: keywords, identificadores, operadores
+    const tokens = cleanCode.match(/[a-zA-Z_$][a-zA-Z0-9_$]*|[+\-*/%=<>!&|^~?.,:;]+|[0-9]+(?:\.[0-9]+)?/g) || [];
+
+    for (const token of tokens) {
+      if (this.operators.has(token)) {
+        operatorCounts.set(token, (operatorCounts.get(token) || 0) + 1);
+      } else {
+        operandCounts.set(token, (operandCounts.get(token) || 0) + 1);
+      }
+    }
+
+    const n1 = operatorCounts.size;                     // η1
+    const n2 = Math.max(operandCounts.size, 1);         // η2 (min 1 para evitar div/0)
+    const N1 = [...operatorCounts.values()].reduce((s, c) => s + c, 0);
+    const N2 = [...operandCounts.values()].reduce((s, c) => s + c, 0);
+
+    const vocabulary = n1 + n2;                                          // η
+    const length = N1 + N2;                                              // N
+    const volume = length > 0 && vocabulary > 1
+      ? Math.round(length * Math.log2(vocabulary) * 100) / 100
+      : 0;                                                               // V
+    const difficulty = n2 > 0
+      ? Math.round(((n1 / 2) * (N2 / n2)) * 100) / 100
+      : 0;                                                               // D
+    const effort = Math.round(difficulty * volume * 100) / 100;          // E
+    const estimatedTime = Math.round((effort / 18) * 100) / 100;        // T (Stroud)
+    const estimatedBugs = Math.round((volume / 3000) * 1000) / 1000;    // B
+
+    return {
+      uniqueOperators: n1,
+      uniqueOperands: n2,
+      totalOperators: N1,
+      totalOperands: N2,
+      vocabulary,
+      length,
+      volume,
+      difficulty,
+      effort,
+      estimatedTime,
+      estimatedBugs,
+    };
   }
 
   private analyzeMaintainability(sourceDir: string, issues: ValidationIssue[]): MaintainabilityMetrics {
@@ -102,27 +215,58 @@ export class MaintainabilityValidator extends BaseValidator {
       // Calcular duplicação de código
       duplicationPercentage = this.calculateDuplication(fileContents);
 
+      // Calcular métricas de Halstead agregadas
+      const allCode = [...fileContents.values()].join('\n');
+      const halstead = this.calculateHalstead(allCode);
+
+      // Alertar sobre alta dificuldade de Halstead
+      if (halstead.difficulty > 50) {
+        issues.push(this.createIssue('warning', 'HALSTEAD_DIFFICULTY',
+          `High Halstead difficulty: ${halstead.difficulty} (code is hard to understand/maintain)`,
+          { suggestion: 'Simplify logic, extract helper functions, reduce variable reuse' },
+        ));
+      }
+
+      // Alertar sobre alto volume (código denso)
+      if (halstead.volume > 5000) {
+        issues.push(this.createIssue('info', 'HALSTEAD_VOLUME',
+          `High code volume: ${halstead.volume} (consider splitting into modules)`,
+          { suggestion: 'Break large files into smaller, focused modules' },
+        ));
+      }
+
       if (functionCount === 0) functionCount = 1;
+
+      const maintainabilityIndex = this.calculateMaintainabilityIndex(
+        functionCount,
+        totalCyclomaticComplexity,
+        missingDocs,
+        duplicationPercentage,
+        halstead,
+      );
+
+      return {
+        cyclomaticComplexity: Math.round(totalCyclomaticComplexity / Math.max(functionCount, 1)),
+        functionLength: this.maxFunctionLength,
+        namingQuality: Math.max(100 - namingIssues * 5, 0),
+        documentationCoverage: Math.round(((functionCount - missingDocs) / Math.max(functionCount, 1)) * 100),
+        duplicationPercentage,
+        maintainabilityIndex,
+        halstead,
+      } as MaintainabilityMetrics & { halstead: HalsteadMetrics };
     } catch (error) {
       issues.push(this.createIssue('error', 'ANALYSIS_ERROR',
         `Error analyzing maintainability: ${error instanceof Error ? error.message : 'Unknown error'}`,
       ));
     }
 
-    const maintainabilityIndex = this.calculateMaintainabilityIndex(
-      functionCount,
-      totalCyclomaticComplexity,
-      missingDocs,
-      duplicationPercentage,
-    );
-
     return {
-      cyclomaticComplexity: Math.round(totalCyclomaticComplexity / Math.max(functionCount, 1)),
+      cyclomaticComplexity: 0,
       functionLength: this.maxFunctionLength,
-      namingQuality: Math.max(100 - namingIssues * 5, 0),
-      documentationCoverage: Math.round(((functionCount - missingDocs) / Math.max(functionCount, 1)) * 100),
-      duplicationPercentage,
-      maintainabilityIndex,
+      namingQuality: 100,
+      documentationCoverage: 0,
+      duplicationPercentage: 0,
+      maintainabilityIndex: 0,
     };
   }
 
@@ -184,13 +328,30 @@ export class MaintainabilityValidator extends BaseValidator {
     totalComplexity: number,
     missingDocs: number,
     duplication: number,
+    halstead?: HalsteadMetrics,
   ): number {
     const avgComplexity = Math.max(totalComplexity / Math.max(functionCount, 1), 1);
     const docCoverage = Math.max(100 - (missingDocs / Math.max(functionCount, 1)) * 100, 0);
     const duplicationScore = Math.max(100 - duplication, 0);
     const complexityScore = Math.max(100 - avgComplexity * 5, 0);
 
-    const index = (docCoverage * 0.3 + duplicationScore * 0.3 + complexityScore * 0.4) / 1;
+    // Se Halstead disponível, incorporar no índice
+    // Difficulty > 30 começa a penalizar; cap em 100
+    if (halstead && halstead.vocabulary > 0) {
+      const halsteadScore = Math.max(100 - halstead.difficulty, 0);
+
+      // Pesos: complexidade 30%, docs 25%, duplicação 25%, halstead 20%
+      const index = (
+        complexityScore * 0.30 +
+        docCoverage * 0.25 +
+        duplicationScore * 0.25 +
+        halsteadScore * 0.20
+      );
+      return Math.round(Math.min(index, 100));
+    }
+
+    // Fallback sem Halstead (comportamento anterior)
+    const index = (docCoverage * 0.3 + duplicationScore * 0.3 + complexityScore * 0.4);
     return Math.round(Math.min(index, 100));
   }
 }

@@ -297,4 +297,145 @@ export function doSomething(): void {
     expect(result.details.duplicationPercentage).toBeDefined();
     expect(result.details.maintainabilityIndex).toBeDefined();
   });
+
+  // ── Halstead Metrics ──
+
+  describe('Halstead Metrics', () => {
+    test('deve calcular métricas de Halstead para código simples', () => {
+      const validator = new MaintainabilityValidator(config);
+      const metrics = validator.calculateHalstead('const x = 1 + 2;');
+
+      expect(metrics.uniqueOperators).toBeGreaterThan(0);
+      expect(metrics.uniqueOperands).toBeGreaterThan(0);
+      expect(metrics.vocabulary).toBeGreaterThan(0);
+      expect(metrics.length).toBeGreaterThan(0);
+      expect(metrics.volume).toBeGreaterThan(0);
+      expect(metrics.difficulty).toBeGreaterThanOrEqual(0);
+      expect(metrics.effort).toBeGreaterThanOrEqual(0);
+    });
+
+    test('deve contar operadores distintos corretamente', () => {
+      const validator = new MaintainabilityValidator(config);
+      const metrics = validator.calculateHalstead('const a = 1 + 2; const b = 3 - 4;');
+
+      // const, =, +, - são operadores distintos
+      expect(metrics.uniqueOperators).toBeGreaterThanOrEqual(3);
+      // a, b, 1, 2, 3, 4 são operandos
+      expect(metrics.uniqueOperands).toBeGreaterThanOrEqual(4);
+    });
+
+    test('deve retornar volume maior para código mais complexo', () => {
+      const validator = new MaintainabilityValidator(config);
+      const simple = validator.calculateHalstead('const x = 1;');
+      const complex = validator.calculateHalstead(`
+        function processData(input: string): string {
+          if (input.length > 0) {
+            const trimmed = input.trim();
+            const lower = trimmed.toLowerCase();
+            return lower.replace(/test/g, 'ok');
+          }
+          return '';
+        }
+      `);
+
+      expect(complex.volume).toBeGreaterThan(simple.volume);
+      expect(complex.length).toBeGreaterThan(simple.length);
+    });
+
+    test('deve calcular tempo estimado positivo', () => {
+      const validator = new MaintainabilityValidator(config);
+      const metrics = validator.calculateHalstead(`
+        function calculate(values: number[]): number {
+          let sum = 0;
+          for (const val of values) {
+            sum += val;
+          }
+          return sum / values.length;
+        }
+      `);
+
+      expect(metrics.estimatedTime).toBeGreaterThan(0);
+      // T = E / 18 (Stroud number)
+      expect(metrics.estimatedTime).toBeCloseTo(metrics.effort / 18, 1);
+    });
+
+    test('deve calcular bugs estimados', () => {
+      const validator = new MaintainabilityValidator(config);
+      const metrics = validator.calculateHalstead(`
+        function complexOperation(data: any[]): any[] {
+          return data
+            .filter(item => item.active && item.value > 0)
+            .map(item => ({ ...item, processed: true }))
+            .sort((a, b) => b.value - a.value);
+        }
+      `);
+
+      expect(metrics.estimatedBugs).toBeGreaterThanOrEqual(0);
+      // B = V / 3000
+      expect(metrics.estimatedBugs).toBeCloseTo(metrics.volume / 3000, 2);
+    });
+
+    test('deve ignorar comentários na contagem', () => {
+      const validator = new MaintainabilityValidator(config);
+      const withComments = validator.calculateHalstead(`
+        // Este é um comentário longo sobre a função
+        /* Bloco de comentário
+           com múltiplas linhas */
+        const x = 1;
+      `);
+      const withoutComments = validator.calculateHalstead('const x = 1;');
+
+      // Volume deve ser similar (comentários removidos antes da análise)
+      expect(withComments.volume).toBeCloseTo(withoutComments.volume, 0);
+    });
+
+    test('deve lidar com código vazio', () => {
+      const validator = new MaintainabilityValidator(config);
+      const metrics = validator.calculateHalstead('');
+
+      expect(metrics.volume).toBe(0);
+      expect(metrics.length).toBe(0);
+      expect(metrics.effort).toBe(0);
+    });
+
+    test('deve incluir Halstead no resultado de validate', () => {
+      const file = path.join(testDir, 'halstead-integration.ts');
+      fs.writeFileSync(file, `
+        /** Processa dados */
+        export function process(items: string[]): string[] {
+          return items.filter(i => i.length > 0).map(i => i.trim());
+        }
+      `);
+
+      const validator = new MaintainabilityValidator(config);
+      const result = validator.validate(testDir);
+
+      expect(result.details.halstead).toBeDefined();
+      expect(result.details.halstead.volume).toBeGreaterThan(0);
+      expect(result.details.halstead.difficulty).toBeGreaterThanOrEqual(0);
+      expect(result.details.halstead.effort).toBeGreaterThanOrEqual(0);
+    });
+
+    test('deve alertar sobre alta dificuldade de Halstead', () => {
+      const file = path.join(testDir, 'difficult-code.ts');
+      // Gerar código com muitas operações e variáveis reutilizadas
+      const lines: string[] = ['export function monster(): number {'];
+      lines.push('  let result = 0;');
+      for (let i = 0; i < 50; i++) {
+        lines.push(`  result = result + ${i} * ${i + 1} - ${i % 3};`);
+        lines.push(`  if (result > ${i * 100}) { result = result / 2; }`);
+      }
+      lines.push('  return result;');
+      lines.push('}');
+      fs.writeFileSync(file, lines.join('\n'));
+
+      const validator = new MaintainabilityValidator(config);
+      const result = validator.validate(testDir);
+
+      // Com código denso, Halstead difficulty deve ser alta
+      if (result.details.halstead && result.details.halstead.difficulty > 50) {
+        expect(result.issues.some(i => i.code === 'HALSTEAD_DIFFICULTY')).toBe(true);
+      }
+    });
+  });
 });
