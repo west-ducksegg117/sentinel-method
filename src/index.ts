@@ -6,6 +6,7 @@ export { PerformanceValidator } from './validators/performance';
 export { MaintainabilityValidator } from './validators/maintainability';
 export { Reporter } from './reporter';
 export { ConfigLoader } from './config';
+export { FileCollector } from './file-collector';
 
 export type {
   SentinelConfig,
