@@ -1,9 +1,13 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { ValidatorResult, ValidationIssue, TestingMetrics, SentinelConfig } from '../types';
+import { BaseValidator } from './base';
 
-export class TestingValidator {
-  constructor(private config: SentinelConfig) {}
+export class TestingValidator extends BaseValidator {
+  readonly name = 'Testing Coverage';
+
+  constructor(config: SentinelConfig) {
+    super(config);
+  }
 
   validate(sourceDir: string): ValidatorResult {
     const issues: ValidationIssue[] = [];
@@ -13,14 +17,7 @@ export class TestingValidator {
     const threshold = this.config.testingThreshold;
     const passed = score >= threshold && issues.filter(i => i.severity === 'error').length === 0;
 
-    return {
-      validator: 'Testing Coverage',
-      passed,
-      score,
-      threshold,
-      issues,
-      details: metrics,
-    };
+    return this.buildResult(passed, issues, metrics, score, threshold);
   }
 
   private analyzeTestCoverage(sourceDir: string, issues: ValidationIssue[]): TestingMetrics {
@@ -35,22 +32,14 @@ export class TestingValidator {
       const sourceFileCount = files.filter(f => f.endsWith('.ts') && !f.endsWith('.test.ts') && !f.endsWith('.spec.ts')).length;
 
       if (sourceFileCount === 0) {
-        issues.push({
-          severity: 'error',
-          code: 'NO_SOURCE_FILES',
-          message: 'No source files found in the specified directory',
-        });
+        issues.push(this.createIssue('error', 'NO_SOURCE_FILES', 'No source files found in the specified directory'));
         return { coverage: 0, assertions: 0, testFiles: 0, edgeCases: 0, qualityScore: 0 };
       }
 
       testFiles = testFileCount;
 
       if (testFileCount === 0) {
-        issues.push({
-          severity: 'error',
-          code: 'NO_TESTS',
-          message: 'No test files found (*.test.ts or *.spec.ts)',
-        });
+        issues.push(this.createIssue('error', 'NO_TESTS', 'No test files found (*.test.ts or *.spec.ts)'));
       }
 
       coverage = Math.min((testFileCount / sourceFileCount) * 100, 100);
@@ -62,27 +51,19 @@ export class TestingValidator {
       }
 
       if (assertions === 0) {
-        issues.push({
-          severity: 'warning',
-          code: 'NO_ASSERTIONS',
-          message: 'No assertions found in test files',
-        });
+        issues.push(this.createIssue('warning', 'NO_ASSERTIONS', 'No assertions found in test files'));
       }
 
       if (edgeCases < assertions * 0.1) {
-        issues.push({
-          severity: 'warning',
-          code: 'LOW_EDGE_CASES',
-          message: 'Edge case coverage is low. Consider adding more edge case tests.',
-          suggestion: 'Add tests for boundary conditions and null/undefined cases',
-        });
+        issues.push(this.createIssue('warning', 'LOW_EDGE_CASES',
+          'Edge case coverage is low. Consider adding more edge case tests.',
+          { suggestion: 'Add tests for boundary conditions and null/undefined cases' },
+        ));
       }
     } catch (error) {
-      issues.push({
-        severity: 'error',
-        code: 'ANALYSIS_ERROR',
-        message: `Error analyzing test coverage: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
+      issues.push(this.createIssue('error', 'ANALYSIS_ERROR',
+        `Error analyzing test coverage: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      ));
     }
 
     const qualityScore = Math.round((coverage + (assertions > 0 ? 20 : 0) + (edgeCases > 0 ? 10 : 0)) / 1.3);
@@ -94,28 +75,5 @@ export class TestingValidator {
       edgeCases,
       qualityScore: Math.min(qualityScore, 100),
     };
-  }
-
-  private getAllFiles(dir: string): string[] {
-    const files: string[] = [];
-
-    const traverse = (currentDir: string): void => {
-      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-
-        const fullPath = path.join(currentDir, entry.name);
-
-        if (entry.isDirectory()) {
-          traverse(fullPath);
-        } else if (entry.isFile()) {
-          files.push(fullPath);
-        }
-      }
-    };
-
-    traverse(dir);
-    return files;
   }
 }

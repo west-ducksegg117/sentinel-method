@@ -1,4 +1,5 @@
 export { Sentinel } from './sentinel';
+export { BaseValidator } from './validators/base';
 export { TestingValidator } from './validators/testing';
 export { SecurityValidator } from './validators/security';
 export { PerformanceValidator } from './validators/performance';

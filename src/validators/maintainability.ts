@@ -1,12 +1,15 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { ValidatorResult, ValidationIssue, MaintainabilityMetrics, SentinelConfig } from '../types';
+import { BaseValidator } from './base';
 
-export class MaintainabilityValidator {
+export class MaintainabilityValidator extends BaseValidator {
+  readonly name = 'Maintainability Checker';
   private readonly maxFunctionLength = 50;
   private readonly maxCyclomaticComplexity = 10;
 
-  constructor(private config: SentinelConfig) {}
+  constructor(config: SentinelConfig) {
+    super(config);
+  }
 
   validate(sourceDir: string): ValidatorResult {
     const issues: ValidationIssue[] = [];
@@ -16,14 +19,7 @@ export class MaintainabilityValidator {
     const threshold = this.config.maintainabilityScore;
     const passed = score >= threshold && issues.filter(i => i.severity === 'error').length === 0;
 
-    return {
-      validator: 'Maintainability Checker',
-      passed,
-      score,
-      threshold,
-      issues,
-      details: metrics,
-    };
+    return this.buildResult(passed, issues, metrics, score, threshold);
   }
 
   private analyzeMaintainability(sourceDir: string, issues: ValidationIssue[]): MaintainabilityMetrics {
@@ -50,85 +46,67 @@ export class MaintainabilityValidator {
         for (let lineNum = 0; lineNum < lines.length; lineNum++) {
           const line = lines[lineNum];
 
-          // Check for function definitions
+          // Detectar definições de função
           if (/^\s*(export\s+)?(async\s+)?function\s+|^\s*const\s+\w+\s*=\s*(\(|async\s*\()/g.test(line)) {
             functionCount++;
 
-            // Calculate cyclomatic complexity
+            // Calcular complexidade ciclomática
             const complexity = this.calculateComplexity(line);
             totalCyclomaticComplexity += complexity;
 
             if (complexity > this.maxCyclomaticComplexity) {
               complexFunctions++;
-              issues.push({
-                severity: 'warning',
-                code: 'HIGH_COMPLEXITY',
-                message: `Function has cyclomatic complexity of ${complexity} (threshold: ${this.maxCyclomaticComplexity})`,
-                file,
-                line: lineNum + 1,
-                suggestion: 'Consider breaking down this function into smaller, more focused functions',
-              });
+              issues.push(this.createIssue('warning', 'HIGH_COMPLEXITY',
+                `Function has cyclomatic complexity of ${complexity} (threshold: ${this.maxCyclomaticComplexity})`,
+                { file, line: lineNum + 1, suggestion: 'Consider breaking down this function into smaller, more focused functions' },
+              ));
             }
 
-            // Check function length
+            // Verificar comprimento da função
             const funcLength = this.getFunctionLength(lines, lineNum);
             if (funcLength > this.maxFunctionLength) {
               longFunctions++;
-              issues.push({
-                severity: 'warning',
-                code: 'LONG_FUNCTION',
-                message: `Function is ${funcLength} lines long (threshold: ${this.maxFunctionLength})`,
-                file,
-                line: lineNum + 1,
-                suggestion: 'Consider refactoring into smaller functions with single responsibility',
-              });
+              issues.push(this.createIssue('warning', 'LONG_FUNCTION',
+                `Function is ${funcLength} lines long (threshold: ${this.maxFunctionLength})`,
+                { file, line: lineNum + 1, suggestion: 'Consider refactoring into smaller functions with single responsibility' },
+              ));
             }
 
-            // Check for documentation
+            // Verificar documentação
             if (lineNum > 0 && !/^\s*\/\//g.test(lines[lineNum - 1]) && !/^\s*\/\*/g.test(lines[lineNum - 1])) {
               missingDocs++;
-              issues.push({
-                severity: 'info',
-                code: 'MISSING_DOCS',
-                message: 'Function lacks documentation comment',
-                file,
-                line: lineNum + 1,
-                suggestion: 'Add JSDoc or inline comments explaining function purpose and parameters',
-              });
+              issues.push(this.createIssue('info', 'MISSING_DOCS',
+                'Function lacks documentation comment',
+                { file, line: lineNum + 1, suggestion: 'Add JSDoc or inline comments explaining function purpose and parameters' },
+              ));
             }
           }
 
-          // Check naming conventions
+          // Verificar convenções de nomenclatura
           const varMatch = line.match(/const\s+([a-z_$][a-z0-9_$]*)|let\s+([a-z_$][a-z0-9_$]*)/gi);
           if (varMatch) {
             for (const match of varMatch) {
               const varName = match.split(/\s+/)[1];
               if (varName.length < 2 || /[A-Z]/.test(varName)) {
                 namingIssues++;
-                issues.push({
-                  severity: 'info',
-                  code: 'NAMING_CONVENTION',
-                  message: `Variable name '${varName}' doesn't follow conventions`,
-                  file,
-                  line: lineNum + 1,
-                  suggestion: 'Use camelCase for variables and descriptive names',
-                });
+                issues.push(this.createIssue('info', 'NAMING_CONVENTION',
+                  `Variable name '${varName}' doesn't follow conventions`,
+                  { file, line: lineNum + 1, suggestion: 'Use camelCase for variables and descriptive names' },
+                ));
               }
             }
           }
         }
       }
 
-      // Calculate code duplication
+      // Calcular duplicação de código
       duplicationPercentage = this.calculateDuplication(fileContents);
 
       if (functionCount === 0) functionCount = 1;
     } catch (error) {
-      issues.push({
-        severity: 'error',
-        code: 'ANALYSIS_ERROR',
-        message: `Error analyzing maintainability: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
+      issues.push(this.createIssue('error', 'ANALYSIS_ERROR',
+        `Error analyzing maintainability: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      ));
     }
 
     const maintainabilityIndex = this.calculateMaintainabilityIndex(
@@ -214,28 +192,5 @@ export class MaintainabilityValidator {
 
     const index = (docCoverage * 0.3 + duplicationScore * 0.3 + complexityScore * 0.4) / 1;
     return Math.round(Math.min(index, 100));
-  }
-
-  private getAllFiles(dir: string): string[] {
-    const files: string[] = [];
-
-    const traverse = (currentDir: string): void => {
-      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-
-        const fullPath = path.join(currentDir, entry.name);
-
-        if (entry.isDirectory()) {
-          traverse(fullPath);
-        } else if (entry.isFile()) {
-          files.push(fullPath);
-        }
-      }
-    };
-
-    traverse(dir);
-    return files;
   }
 }

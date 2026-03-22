@@ -1,8 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ValidatorResult, SecurityIssue, SecurityMetrics, SentinelConfig } from '../types';
+import { BaseValidator } from './base';
 
-export class SecurityValidator {
+export class SecurityValidator extends BaseValidator {
+  readonly name = 'Security Scanning';
+
   private readonly injectionPatterns = [
     /eval\s*\(/gi,
     /Function\s*\(/gi,
@@ -25,8 +28,9 @@ export class SecurityValidator {
     /document\.write\s*\(/gi,
   ];
 
-  // Config para níveis de severidade customizáveis
-  constructor(private config: SentinelConfig) {}
+  constructor(config: SentinelConfig) {
+    super(config);
+  }
 
   /** Retorna o nível de segurança configurado */
   getSecurityLevel(): string {
@@ -39,12 +43,7 @@ export class SecurityValidator {
 
     const passed = metrics.vulnerabilitiesFound === 0 && metrics.injectionRisks === 0 && metrics.hardcodedSecrets === 0;
 
-    return {
-      validator: 'Security Scanning',
-      passed,
-      issues: issues as any,
-      details: metrics,
-    };
+    return this.buildResult(passed, issues as any, metrics);
   }
 
   private scanSecurity(sourceDir: string, issues: SecurityIssue[]): SecurityMetrics {
@@ -136,28 +135,5 @@ export class SecurityValidator {
       dependencyIssues,
       securityScore,
     };
-  }
-
-  private getAllFiles(dir: string): string[] {
-    const files: string[] = [];
-
-    const traverse = (currentDir: string): void => {
-      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-
-        const fullPath = path.join(currentDir, entry.name);
-
-        if (entry.isDirectory()) {
-          traverse(fullPath);
-        } else if (entry.isFile()) {
-          files.push(fullPath);
-        }
-      }
-    };
-
-    traverse(dir);
-    return files;
   }
 }

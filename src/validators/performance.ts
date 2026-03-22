@@ -1,9 +1,13 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { ValidatorResult, PerformanceIssue, PerformanceMetrics, SentinelConfig } from '../types';
+import { BaseValidator } from './base';
 
-export class PerformanceValidator {
-  constructor(private config: SentinelConfig) {}
+export class PerformanceValidator extends BaseValidator {
+  readonly name = 'Performance Benchmarks';
+
+  constructor(config: SentinelConfig) {
+    super(config);
+  }
 
   validate(sourceDir: string): ValidatorResult {
     const issues: PerformanceIssue[] = [];
@@ -19,14 +23,7 @@ export class PerformanceValidator {
     const score = metrics.performanceScore;
     const passed = score >= threshold && issues.filter(i => i.severity === 'error').length === 0;
 
-    return {
-      validator: 'Performance Benchmarks',
-      passed,
-      score,
-      threshold,
-      issues: issues as any,
-      details: metrics,
-    };
+    return this.buildResult(passed, issues as any, metrics, score, threshold);
   }
 
   private analyzePerformance(sourceDir: string, issues: PerformanceIssue[]): PerformanceMetrics {
@@ -46,7 +43,7 @@ export class PerformanceValidator {
         for (let lineNum = 0; lineNum < lines.length; lineNum++) {
           const line = lines[lineNum];
 
-          // Check for complex nested loops
+          // Detectar loops aninhados
           const nestedLoops = (line.match(/for\s*\(|while\s*\(|forEach/g) || []).length;
           if (nestedLoops > 1) {
             avgComplexity += nestedLoops;
@@ -63,7 +60,7 @@ export class PerformanceValidator {
             });
           }
 
-          // Check for memory allocation patterns
+          // Verificar padrões de alocação de memória
           if (/new\s+Array|new\s+Object|new\s+Map|new\s+Set/gi.test(line)) {
             const allocCount = (line.match(/new\s+/g) || []).length;
             if (allocCount > 2) {
@@ -81,7 +78,7 @@ export class PerformanceValidator {
             }
           }
 
-          // Check for N+1 query patterns (basic detection)
+          // Detectar padrão N+1 query (detecção básica)
           if (/\.map\s*\(.*\)\s*\{.*\.query|\.find\s*\(.*\)\s*{.*\.query/gi.test(lines.slice(Math.max(0, lineNum - 2), lineNum + 3).join('\n'))) {
             queryPatterns++;
             issues.push({
@@ -96,7 +93,7 @@ export class PerformanceValidator {
             });
           }
 
-          // Check for improper async/await usage
+          // Verificar uso impróprio de async/await
           if (/await\s+Promise\.all\s*\(\s*\[\s*await/gi.test(line)) {
             asyncIssues++;
             issues.push({
@@ -134,28 +131,5 @@ export class PerformanceValidator {
       queryPatterns,
       performanceScore: Math.min(performanceScore, 100),
     };
-  }
-
-  private getAllFiles(dir: string): string[] {
-    const files: string[] = [];
-
-    const traverse = (currentDir: string): void => {
-      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-
-        const fullPath = path.join(currentDir, entry.name);
-
-        if (entry.isDirectory()) {
-          traverse(fullPath);
-        } else if (entry.isFile()) {
-          files.push(fullPath);
-        }
-      }
-    };
-
-    traverse(dir);
-    return files;
   }
 }
