@@ -10,6 +10,7 @@ export { DocumentationValidator } from './validators/documentation';
 export { CodeStyleValidator } from './validators/code-style';
 export { Reporter } from './reporter';
 export { ConfigLoader } from './config';
+export type { ConfigValidationResult } from './config';
 export { FileCollector } from './file-collector';
 export { PluginLoader } from './plugin-loader';
 export type { SentinelPlugin, PluginRegistry } from './plugin-loader';
