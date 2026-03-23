@@ -398,7 +398,7 @@ export class Reporter {
   .btn-prompt { background: linear-gradient(135deg, rgba(0,229,160,0.12), rgba(0,229,160,0.05)); border: 1px solid rgba(0,229,160,0.3); color: var(--accent); padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
   .btn-prompt:hover { background: rgba(0,229,160,0.2); border-color: var(--accent); }
   .spec-dropdown { position: relative; }
-  .spec-menu { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px; min-width: 200px; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+  .spec-menu { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px; min-width: 200px; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
   .spec-menu.show { display: block; }
   .spec-menu button { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: background 0.15s; }
   .spec-menu button:hover { background: rgba(0,229,160,0.1); color: var(--accent); }
