@@ -525,23 +525,6 @@ export class Reporter {
     ${issueGroups}
   </div>` : ''}
 
-  <!-- Spec Generator Modal -->
-  <div class="modal-overlay" id="promptModal" onclick="if(event.target===this)closeModal()">
-    <div class="modal">
-      <div class="modal-header">
-        <span class="modal-title" id="modalTitle">🚀 Engineering Spec</span>
-        <button class="modal-close" onclick="closeModal()">✕</button>
-      </div>
-      <div class="modal-sub" id="modalSub"></div>
-      <div class="modal-tabs" id="modalTabs"></div>
-      <textarea class="modal-text" id="modalText" readonly></textarea>
-      <div class="modal-actions">
-        <button class="btn-copy" onclick="copyPrompt()">📋 Copiar</button>
-        <button class="btn-copy" style="background:var(--info)" onclick="copyAll()">📦 Copiar Tudo</button>
-        <span class="copy-feedback" id="copyFeedback"></span>
-      </div>
-    </div>
-  </div>
 
   <!-- Footer -->
   <div class="footer">
@@ -1034,6 +1017,25 @@ function copyAll(){
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
 </script>
 </div>
+
+<!-- Spec Generator Modal — FORA do container principal para z-index funcionar -->
+<div class="modal-overlay" id="promptModal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">🚀 Engineering Spec</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-sub" id="modalSub"></div>
+    <div class="modal-tabs" id="modalTabs"></div>
+    <textarea class="modal-text" id="modalText" readonly></textarea>
+    <div class="modal-actions">
+      <button class="btn-copy" onclick="copyPrompt()">📋 Copiar</button>
+      <button class="btn-copy" style="background:var(--info)" onclick="copyAll()">📦 Copiar Tudo</button>
+      <span class="copy-feedback" id="copyFeedback"></span>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>`;
   }
