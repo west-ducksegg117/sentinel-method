@@ -218,22 +218,71 @@ export class Reporter {
       </div>`;
     }).join('');
 
-    // ── Issue summary table (full) ──
+    // ── Issues grouped by validator (with pagination + prompt gen) ──
     const allIssues = result.results.flatMap(vr =>
       vr.issues.map(issue => ({ ...issue, validatorName: vr.validator })),
     );
-    const issueTableRows = allIssues.slice(0, 100).map(issue => {
-      const sevClass = issue.severity === 'error' ? 'sev-error' : issue.severity === 'warning' ? 'sev-warn' : 'sev-info';
-      const file = issue.file ? issue.file.split('/').pop() : '—';
-      return `<tr>
-        <td><span class="sev-badge ${sevClass}">${issue.severity.toUpperCase()}</span></td>
-        <td class="td-validator">${issue.validatorName}</td>
-        <td><code>${issue.code}</code></td>
-        <td class="td-msg">${issue.message}</td>
-        <td class="td-loc">${file}${issue.line ? ':' + issue.line : ''}</td>
-      </tr>`;
-    }).join('');
-    const moreIssues = allIssues.length > 100 ? `<tr><td colspan="5" style="text-align:center;color:#555e6e;padding:16px">+ ${allIssues.length - 100} more issues not shown</td></tr>` : '';
+    const PAGE_SIZE = 15;
+    const issueGroups = result.results
+      .filter(vr => vr.issues.length > 0)
+      .map((vr, groupIdx) => {
+        const issues = vr.issues;
+        const totalPages = Math.ceil(issues.length / PAGE_SIZE);
+        const rows = issues.map((issue, i) => {
+          const sevClass = issue.severity === 'error' ? 'sev-error' : issue.severity === 'warning' ? 'sev-warn' : 'sev-info';
+          const file = issue.file ? issue.file.split('/').pop() : '—';
+          const page = Math.floor(i / PAGE_SIZE);
+          return `<tr class="ig-row" data-group="${groupIdx}" data-page="${page}"${page > 0 ? ' style="display:none"' : ''}>
+            <td><span class="sev-badge ${sevClass}">${issue.severity.toUpperCase()}</span></td>
+            <td><code>${issue.code}</code></td>
+            <td class="td-msg">${issue.message}</td>
+            <td class="td-loc">${file}${issue.line ? ':' + issue.line : ''}</td>
+          </tr>`;
+        }).join('');
+
+        const errors = issues.filter(i => i.severity === 'error').length;
+        const warns = issues.filter(i => i.severity === 'warning').length;
+        const infos = issues.filter(i => i.severity === 'info').length;
+        const badges = [
+          errors > 0 ? `<span class="sev-badge sev-error">${errors} errors</span>` : '',
+          warns > 0 ? `<span class="sev-badge sev-warn">${warns} warnings</span>` : '',
+          infos > 0 ? `<span class="sev-badge sev-info">${infos} info</span>` : '',
+        ].filter(Boolean).join(' ');
+
+        // Prompt data embedded as JSON for JS to build the prompt
+        const promptData = issues.map(iss => ({
+          sev: iss.severity,
+          code: iss.code,
+          msg: iss.message,
+          file: iss.file ? iss.file.split('/').pop() : null,
+          line: iss.line ?? null,
+          suggestion: iss.suggestion ?? null,
+        }));
+        const promptJson = JSON.stringify(promptData).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+
+        return `
+        <div class="issue-group">
+          <div class="ig-header" onclick="toggleGroup(${groupIdx})">
+            <div class="ig-left">
+              <span class="ig-arrow" id="arrow-${groupIdx}">▶</span>
+              <strong>${vr.validator}</strong>
+              <span class="ig-count">${issues.length} issues</span>
+              ${badges}
+            </div>
+            <div class="ig-actions">
+              <button class="btn-prompt" onclick="event.stopPropagation();genPrompt(${groupIdx},'${vr.validator.replace(/'/g, "\\'")}')">📋 Gerar Prompt</button>
+            </div>
+          </div>
+          <div class="ig-body" id="igb-${groupIdx}" style="display:none">
+            <table class="issues-table">
+              <thead><tr><th>Severity</th><th>Code</th><th>Message</th><th>Location</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+            ${totalPages > 1 ? `<div class="ig-pagination" id="igp-${groupIdx}"></div>` : ''}
+          </div>
+          <script type="application/json" id="pd-${groupIdx}">${promptJson}</script>
+        </div>`;
+      }).join('');
 
     return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -308,6 +357,40 @@ export class Reporter {
   .td-msg { max-width: 400px; }
   .td-loc { font-family: monospace; font-size: 11px; color: #555e6e; white-space: nowrap; }
   code { background: var(--surface2); padding: 2px 8px; border-radius: 4px; font-size: 11px; color: var(--accent); }
+
+  /* ── Issue Groups ── */
+  .issue-group { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+  .ig-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; cursor: pointer; background: var(--surface2); transition: background 0.2s; }
+  .ig-header:hover { background: rgba(0,229,160,0.05); }
+  .ig-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ig-arrow { font-size: 10px; color: var(--text2); transition: transform 0.2s; display: inline-block; }
+  .ig-arrow.open { transform: rotate(90deg); }
+  .ig-count { background: var(--surface); padding: 2px 10px; border-radius: 20px; font-size: 11px; color: var(--text2); }
+  .ig-body { padding: 0 16px 16px; }
+  .ig-actions { display: flex; gap: 8px; }
+  .btn-prompt { background: linear-gradient(135deg, rgba(0,229,160,0.12), rgba(0,229,160,0.05)); border: 1px solid rgba(0,229,160,0.3); color: var(--accent); padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .btn-prompt:hover { background: rgba(0,229,160,0.2); border-color: var(--accent); }
+
+  /* ── Pagination ── */
+  .ig-pagination { display: flex; gap: 4px; justify-content: center; padding-top: 12px; }
+  .pg-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .pg-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .pg-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
+
+  /* ── Prompt Modal ── */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 1000; justify-content: center; align-items: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 800px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+  .modal-title { font-weight: 700; font-size: 16px; }
+  .modal-close { background: none; border: none; color: var(--text2); font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .modal-close:hover { background: var(--surface2); color: var(--text); }
+  .modal-sub { padding: 12px 24px 0; font-size: 13px; color: var(--text2); }
+  .modal-text { flex: 1; margin: 12px 24px; padding: 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.6; resize: none; min-height: 300px; }
+  .modal-actions { display: flex; gap: 12px; align-items: center; padding: 16px 24px; border-top: 1px solid var(--border); }
+  .btn-copy { background: var(--accent); color: var(--bg); border: none; padding: 10px 24px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; transition: opacity 0.2s; }
+  .btn-copy:hover { opacity: 0.85; }
+  .copy-feedback { font-size: 13px; color: var(--accent); font-weight: 600; }
 
   /* ── Footer ── */
   .footer { text-align: center; padding: 40px 0 20px; color: #3d4555; font-size: 12px; border-top: 1px solid var(--border); margin-top: 40px; }
@@ -399,17 +482,28 @@ export class Reporter {
     </div>
   </div>
 
-  <!-- Full Issues Table -->
+  <!-- Issues by Validator (grouped + paginated) -->
   ${allIssues.length > 0 ? `
   <div class="card">
     <div class="card-title">All Issues (${allIssues.length})</div>
-    <div style="overflow-x:auto">
-      <table class="issues-table">
-        <thead><tr><th>Severity</th><th>Validator</th><th>Code</th><th>Message</th><th>Location</th></tr></thead>
-        <tbody>${issueTableRows}${moreIssues}</tbody>
-      </table>
-    </div>
+    ${issueGroups}
   </div>` : ''}
+
+  <!-- Prompt Modal -->
+  <div class="modal-overlay" id="promptModal" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">📋 Prompt de Correção</span>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-sub" id="modalSub"></div>
+      <textarea class="modal-text" id="modalText" readonly></textarea>
+      <div class="modal-actions">
+        <button class="btn-copy" onclick="copyPrompt()">📋 Copiar Prompt</button>
+        <span class="copy-feedback" id="copyFeedback"></span>
+      </div>
+    </div>
+  </div>
 
   <!-- Footer -->
   <div class="footer">
@@ -417,6 +511,74 @@ export class Reporter {
     <p style="margin-top:4px">Print this page (Ctrl+P / Cmd+P) to export as PDF</p>
   </div>
 
+</div>
+<script>
+/* ── Toggle issue groups ── */
+function toggleGroup(g){
+  var b=document.getElementById('igb-'+g),a=document.getElementById('arrow-'+g);
+  if(b.style.display==='none'){b.style.display='block';a.classList.add('open');initPagination(g);}
+  else{b.style.display='none';a.classList.remove('open');}
+}
+
+/* ── Pagination ── */
+function initPagination(g){
+  var rows=document.querySelectorAll('.ig-row[data-group="'+g+'"]');
+  var pages=new Set();rows.forEach(function(r){pages.add(r.dataset.page);});
+  var total=pages.size;if(total<=1)return;
+  var c=document.getElementById('igp-'+g);if(!c||c.children.length>0)return;
+  for(var p=0;p<total;p++){
+    var btn=document.createElement('button');btn.className='pg-btn'+(p===0?' active':'');
+    btn.textContent=''+(p+1);btn.dataset.group=g;btn.dataset.page=p;
+    btn.onclick=function(){goPage(parseInt(this.dataset.group),parseInt(this.dataset.page));};
+    c.appendChild(btn);
+  }
+}
+function goPage(g,p){
+  document.querySelectorAll('.ig-row[data-group="'+g+'"]').forEach(function(r){
+    r.style.display=parseInt(r.dataset.page)===p?'':'none';
+  });
+  var btns=document.getElementById('igp-'+g);if(!btns)return;
+  Array.from(btns.children).forEach(function(b,i){b.className='pg-btn'+(i===p?' active':'');});
+}
+
+/* ── Prompt Generator ── */
+function genPrompt(g,validator){
+  var data=JSON.parse(document.getElementById('pd-'+g).textContent);
+  var byFile={};
+  data.forEach(function(d){var k=d.file||'general';if(!byFile[k])byFile[k]=[];byFile[k].push(d);});
+  var lines=[];
+  lines.push('Corrija os seguintes problemas encontrados pelo Sentinel Method (validator: '+validator+'):');
+  lines.push('');
+  Object.keys(byFile).forEach(function(f){
+    lines.push('## '+f);
+    byFile[f].forEach(function(d){
+      var loc=d.line?'linha '+d.line:'';
+      lines.push('- ['+d.sev.toUpperCase()+'] '+d.code+': '+d.msg+(loc?' ('+loc+')':''));
+      if(d.suggestion)lines.push('  Sugestão: '+d.suggestion);
+    });
+    lines.push('');
+  });
+  lines.push('---');
+  lines.push('Instruções:');
+  lines.push('1. Analise cada issue e aplique a correção adequada');
+  lines.push('2. Mantenha o estilo do código existente');
+  lines.push('3. Não quebre funcionalidades existentes');
+  lines.push('4. Adicione comentários explicativos quando a correção não for óbvia');
+  lines.push('5. Se uma issue for falso positivo, explique o motivo');
+  document.getElementById('modalSub').textContent=validator+' — '+data.length+' issues';
+  document.getElementById('modalText').value=lines.join('\\n');
+  document.getElementById('promptModal').classList.add('show');
+}
+function closeModal(){document.getElementById('promptModal').classList.remove('show');}
+function copyPrompt(){
+  var t=document.getElementById('modalText');t.select();
+  navigator.clipboard.writeText(t.value).then(function(){
+    document.getElementById('copyFeedback').textContent='✓ Copiado!';
+    setTimeout(function(){document.getElementById('copyFeedback').textContent='';},2000);
+  });
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+</script>
 </div>
 </body>
 </html>`;
