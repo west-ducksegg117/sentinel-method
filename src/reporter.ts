@@ -249,16 +249,26 @@ export class Reporter {
           infos > 0 ? `<span class="sev-badge sev-info">${infos} info</span>` : '',
         ].filter(Boolean).join(' ');
 
-        // Prompt data embedded as JSON for JS to build the prompt
-        const promptData = issues.map(iss => ({
-          sev: iss.severity,
-          code: iss.code,
-          msg: iss.message,
-          file: iss.file ? iss.file.split('/').pop() : null,
-          line: iss.line ?? null,
-          suggestion: iss.suggestion ?? null,
-        }));
-        const promptJson = JSON.stringify(promptData).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+        // Prompt data embedded as JSON — includes validator metadata + issues
+        const promptPayload = {
+          validator: vr.validator,
+          passed: vr.passed,
+          score: vr.score ?? null,
+          threshold: vr.threshold ?? null,
+          errorCount: errors,
+          warnCount: warns,
+          infoCount: infos,
+          issues: issues.map(iss => ({
+            sev: iss.severity,
+            code: iss.code,
+            msg: iss.message,
+            file: iss.file ? iss.file.split('/').pop() : null,
+            fullPath: iss.file ?? null,
+            line: iss.line ?? null,
+            suggestion: iss.suggestion ?? null,
+          })),
+        };
+        const promptJson = JSON.stringify(promptPayload).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 
         return `
         <div class="issue-group">
@@ -270,7 +280,17 @@ export class Reporter {
               ${badges}
             </div>
             <div class="ig-actions">
-              <button class="btn-prompt" onclick="event.stopPropagation();genPrompt(${groupIdx},'${vr.validator.replace(/'/g, "\\'")}')">📋 Gerar Prompt</button>
+              <div class="spec-dropdown" onclick="event.stopPropagation()">
+                <button class="btn-prompt" onclick="toggleSpecMenu(${groupIdx})">🚀 Gerar Spec ▾</button>
+                <div class="spec-menu" id="sm-${groupIdx}">
+                  <button onclick="genSpec(${groupIdx},'full')">📦 Spec Completa</button>
+                  <button onclick="genSpec(${groupIdx},'bdd')">🧪 BDD Scenarios</button>
+                  <button onclick="genSpec(${groupIdx},'tdd')">🔬 TDD Specs</button>
+                  <button onclick="genSpec(${groupIdx},'tasks')">📋 Tasks + Stories</button>
+                  <button onclick="genSpec(${groupIdx},'solid')">🏗️ SOLID + C4</button>
+                  <button onclick="genSpec(${groupIdx},'agent')">🤖 Agent Prompt</button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="ig-body" id="igb-${groupIdx}" style="display:none">
@@ -370,6 +390,11 @@ export class Reporter {
   .ig-actions { display: flex; gap: 8px; }
   .btn-prompt { background: linear-gradient(135deg, rgba(0,229,160,0.12), rgba(0,229,160,0.05)); border: 1px solid rgba(0,229,160,0.3); color: var(--accent); padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
   .btn-prompt:hover { background: rgba(0,229,160,0.2); border-color: var(--accent); }
+  .spec-dropdown { position: relative; }
+  .spec-menu { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px; min-width: 200px; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+  .spec-menu.show { display: block; }
+  .spec-menu button { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: background 0.15s; }
+  .spec-menu button:hover { background: rgba(0,229,160,0.1); color: var(--accent); }
 
   /* ── Pagination ── */
   .ig-pagination { display: flex; gap: 4px; justify-content: center; padding-top: 12px; }
@@ -380,7 +405,11 @@ export class Reporter {
   /* ── Prompt Modal ── */
   .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 1000; justify-content: center; align-items: center; }
   .modal-overlay.show { display: flex; }
-  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 800px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; width: 95%; max-width: 960px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .modal-tabs { display: flex; gap: 4px; padding: 0 24px; flex-wrap: wrap; }
+  .modal-tab { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); padding: 6px 14px; border-radius: 6px; font-size: 11px; cursor: pointer; transition: all 0.15s; }
+  .modal-tab:hover { border-color: var(--accent); color: var(--accent); }
+  .modal-tab.active { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
   .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); }
   .modal-title { font-weight: 700; font-size: 16px; }
   .modal-close { background: none; border: none; color: var(--text2); font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
@@ -489,17 +518,19 @@ export class Reporter {
     ${issueGroups}
   </div>` : ''}
 
-  <!-- Prompt Modal -->
+  <!-- Spec Generator Modal -->
   <div class="modal-overlay" id="promptModal" onclick="if(event.target===this)closeModal()">
     <div class="modal">
       <div class="modal-header">
-        <span class="modal-title">📋 Prompt de Correção</span>
+        <span class="modal-title" id="modalTitle">🚀 Engineering Spec</span>
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
       <div class="modal-sub" id="modalSub"></div>
+      <div class="modal-tabs" id="modalTabs"></div>
       <textarea class="modal-text" id="modalText" readonly></textarea>
       <div class="modal-actions">
-        <button class="btn-copy" onclick="copyPrompt()">📋 Copiar Prompt</button>
+        <button class="btn-copy" onclick="copyPrompt()">📋 Copiar</button>
+        <button class="btn-copy" style="background:var(--info)" onclick="copyAll()">📦 Copiar Tudo</button>
         <span class="copy-feedback" id="copyFeedback"></span>
       </div>
     </div>
@@ -541,39 +572,392 @@ function goPage(g,p){
   Array.from(btns.children).forEach(function(b,i){b.className='pg-btn'+(i===p?' active':'');});
 }
 
-/* ── Prompt Generator ── */
-function genPrompt(g,validator){
-  var data=JSON.parse(document.getElementById('pd-'+g).textContent);
-  var byFile={};
-  data.forEach(function(d){var k=d.file||'general';if(!byFile[k])byFile[k]=[];byFile[k].push(d);});
-  var lines=[];
-  lines.push('Corrija os seguintes problemas encontrados pelo Sentinel Method (validator: '+validator+'):');
-  lines.push('');
-  Object.keys(byFile).forEach(function(f){
-    lines.push('## '+f);
-    byFile[f].forEach(function(d){
-      var loc=d.line?'linha '+d.line:'';
-      lines.push('- ['+d.sev.toUpperCase()+'] '+d.code+': '+d.msg+(loc?' ('+loc+')':''));
-      if(d.suggestion)lines.push('  Sugestão: '+d.suggestion);
-    });
-    lines.push('');
+/* ── Spec Dropdown ── */
+var openMenu=null;
+function toggleSpecMenu(g){
+  var m=document.getElementById('sm-'+g);
+  if(openMenu&&openMenu!==m){openMenu.classList.remove('show');}
+  m.classList.toggle('show');
+  openMenu=m.classList.contains('show')?m:null;
+}
+document.addEventListener('click',function(e){
+  if(openMenu&&!e.target.closest('.spec-dropdown')){openMenu.classList.remove('show');openMenu=null;}
+});
+
+/* ── Helpers ── */
+function groupByFile(issues){
+  var m={};issues.forEach(function(d){var k=d.file||'(general)';if(!m[k])m[k]=[];m[k].push(d);});return m;
+}
+function issueList(issues){
+  return issues.map(function(d){
+    var loc=d.line?' (linha '+d.line+')':'';
+    return '- ['+d.sev.toUpperCase()+'] '+d.code+': '+d.msg+loc+(d.suggestion?'\\n  Sugestão: '+d.suggestion:'');
+  }).join('\\n');
+}
+
+/* ── Validator-specific context maps ── */
+var VCtx={
+  'Security Scanning':{
+    area:'Segurança',
+    owasp:true,
+    solid:['SRP','DIP'],
+    c4:'Identifique os componentes que processam input externo e trace o fluxo de dados até o ponto vulnerável.',
+    bddFocus:'cenários de ataque e validação de input',
+    tddFocus:'testes de sanitização, encoding, e rejeição de payloads maliciosos',
+    agentRole:'Security Engineer especialista em OWASP Top 10 e CWE'
+  },
+  'Testing Coverage':{
+    area:'Cobertura de Testes',
+    owasp:false,
+    solid:['SRP'],
+    c4:'Mapeie quais componentes/módulos possuem menor cobertura e priorize por criticidade de negócio.',
+    bddFocus:'cenários de negócio não cobertos por testes',
+    tddFocus:'specs unitários para funções/métodos descobertos',
+    agentRole:'QA Engineer especialista em test strategy e cobertura'
+  },
+  'Performance Benchmarks':{
+    area:'Performance',
+    owasp:false,
+    solid:['SRP','OCP','ISP'],
+    c4:'Identifique hot paths e gargalos no diagrama de componentes. Trace latência end-to-end.',
+    bddFocus:'cenários de carga, tempo de resposta e limites de recursos',
+    tddFocus:'testes de benchmark e regressão de performance',
+    agentRole:'Performance Engineer especialista em profiling e otimização'
+  },
+  'Maintainability Checker':{
+    area:'Manutenibilidade',
+    owasp:false,
+    solid:['SRP','OCP','LSP','ISP','DIP'],
+    c4:'Analise acoplamento entre componentes. Identifique god classes e dependências circulares.',
+    bddFocus:'cenários de refatoração que validam comportamento preservado',
+    tddFocus:'testes de caracterização antes do refactor + testes unitários pós-refactor',
+    agentRole:'Software Architect especialista em clean code e refactoring patterns'
+  },
+  'Dependency Analysis':{
+    area:'Dependências',
+    owasp:false,
+    solid:['DIP','OCP'],
+    c4:'Mapeie o grafo de dependências. Identifique dependências transitivas e pontos de falha.',
+    bddFocus:'cenários de build, compatibilidade e isolamento de módulos',
+    tddFocus:'testes de integração para validar dependências corretas',
+    agentRole:'DevOps Engineer especialista em dependency management e supply chain security'
+  },
+  'Documentation Coverage':{
+    area:'Documentação',
+    owasp:false,
+    solid:[],
+    c4:'Documente a arquitetura do sistema usando C4 model (Context, Container, Component, Code).',
+    bddFocus:null,
+    tddFocus:null,
+    agentRole:'Technical Writer especialista em documentação de API e arquitetura'
+  },
+  'Code Style':{
+    area:'Estilo de Código',
+    owasp:false,
+    solid:['SRP','OCP'],
+    c4:null,
+    bddFocus:null,
+    tddFocus:'testes de linting automatizado e conformidade com style guide',
+    agentRole:'Senior Developer especialista em clean code e code review'
+  }
+};
+var defaultCtx={area:'Qualidade',owasp:false,solid:['SRP'],c4:null,bddFocus:'cenários de validação',tddFocus:'testes unitários',agentRole:'Senior Software Engineer'};
+
+/* ── Spec Generators ── */
+var specSections={};
+
+function buildContext(p){
+  var byF=groupByFile(p.issues);
+  var files=Object.keys(byF);
+  var s='# Contexto — '+p.validator+'\\n';
+  s+='Score: '+(p.score!==null?p.score+'%':'N/A')+' | Threshold: '+(p.threshold!==null?p.threshold+'%':'N/A')+' | Status: '+(p.passed?'PASS':'FAIL')+'\\n';
+  s+='Errors: '+p.errorCount+' | Warnings: '+p.warnCount+' | Info: '+p.infoCount+'\\n';
+  s+='Arquivos afetados: '+files.length+'\\n\\n';
+  s+='## Issues por Arquivo\\n';
+  files.forEach(function(f){
+    s+='\\n### '+f+'\\n';
+    s+=issueList(byF[f])+'\\n';
   });
-  lines.push('---');
-  lines.push('Instruções:');
-  lines.push('1. Analise cada issue e aplique a correção adequada');
-  lines.push('2. Mantenha o estilo do código existente');
-  lines.push('3. Não quebre funcionalidades existentes');
-  lines.push('4. Adicione comentários explicativos quando a correção não for óbvia');
-  lines.push('5. Se uma issue for falso positivo, explique o motivo');
-  document.getElementById('modalSub').textContent=validator+' — '+data.length+' issues';
-  document.getElementById('modalText').value=lines.join('\\n');
+  return s;
+}
+
+function buildBDD(p,ctx){
+  if(!ctx.bddFocus) return '# BDD Scenarios\\n\\n> Não aplicável para este validator.\\n';
+  var byF=groupByFile(p.issues);
+  var files=Object.keys(byF);
+  var s='# BDD Scenarios (Gherkin)\\n';
+  s+='> Foco: '+ctx.bddFocus+'\\n\\n';
+  s+='Gere cenários BDD (Given/When/Then) para cada problema encontrado.\\n';
+  s+='Use a linguagem do domínio do projeto. Cada cenário deve ser executável.\\n\\n';
+  files.forEach(function(f){
+    var issues=byF[f];
+    s+='## Feature: Correção de '+ctx.area+' em '+f+'\\n\\n';
+    issues.forEach(function(d,i){
+      s+='  Scenario: '+d.code+' — '+d.msg.substring(0,60)+'\\n';
+      s+='    Given o arquivo "'+f+'"'+(d.line?' na linha '+d.line:'')+' contém o problema '+d.code+'\\n';
+      s+='    When a correção for aplicada\\n';
+      s+='    Then o código deve passar na validação de '+ctx.area.toLowerCase()+'\\n';
+      if(d.suggestion) s+='    And deve seguir a sugestão: "'+d.suggestion+'"\\n';
+      s+='    And nenhuma funcionalidade existente deve quebrar\\n\\n';
+    });
+  });
+  s+='## Cenários de Regressão\\n\\n';
+  s+='  Scenario: Nenhum novo issue introduzido\\n';
+  s+='    Given o projeto após todas as correções\\n';
+  s+='    When o Sentinel Method executar o validator '+p.validator+'\\n';
+  s+='    Then o score deve ser >= '+(p.threshold||70)+'%\\n';
+  s+='    And não deve haver novos errors ou warnings\\n';
+  return s;
+}
+
+function buildTDD(p,ctx){
+  if(!ctx.tddFocus) return '# TDD Specs\\n\\n> Não aplicável para este validator.\\n';
+  var byF=groupByFile(p.issues);
+  var files=Object.keys(byF);
+  var s='# TDD Specs (Test-Driven Development)\\n';
+  s+='> Foco: '+ctx.tddFocus+'\\n\\n';
+  s+='Crie os testes ANTES de implementar as correções (Red → Green → Refactor).\\n';
+  s+='Use o framework de testes do projeto (Jest, Mocha, Pytest, JUnit, etc).\\n\\n';
+  files.forEach(function(f){
+    var issues=byF[f];
+    var testFile=f.replace(/\\.([a-z]+)$/i,'.test.$1');
+    s+='## '+testFile+'\\n\\n';
+    s+='\\n';
+    s+="describe('"+f+" - "+ctx.area+"', () => {\\n";
+    issues.forEach(function(d){
+      s+="  describe('"+d.code+"', () => {\\n";
+      var safeMsg=d.msg.replace(/'/g,"").substring(0,80);
+      s+="    it('should fix: "+safeMsg+"', () => {\\n";
+      s+='      // TODO: Implementar teste que valida a correcao\\n';
+      if(d.suggestion) s+="      // Sugestao: "+d.suggestion+"\\n";
+      s+='      // Arrange: setup do cenario\\n';
+      s+='      // Act: executar a operacao\\n';
+      s+='      // Assert: verificar que o problema foi resolvido\\n';
+      s+='    });\\n\\n';
+      s+="    it('should not break existing functionality', () => {\\n";
+      s+='      // Teste de regressao\\n';
+      s+='    });\\n';
+      s+='  });\\n\\n';
+    });
+    s+='});\\n\\n';
+  });
+  return s;
+}
+
+function buildTasks(p,ctx){
+  var byF=groupByFile(p.issues);
+  var files=Object.keys(byF);
+  var s='# User Stories & Tasks\\n\\n';
+  s+='## Epic: Melhorar '+ctx.area+' do Projeto\\n\\n';
+  s+='### User Stories\\n\\n';
+  s+='**US-01**: Como desenvolvedor, quero corrigir os '+p.errorCount+' errors de '+ctx.area.toLowerCase()+'\\n';
+  s+='para que o projeto passe no quality gate do Sentinel (threshold: '+(p.threshold||70)+'%).\\n\\n';
+  s+='**Acceptance Criteria:**\\n';
+  s+='- [ ] Score do validator >= '+(p.threshold||70)+'%\\n';
+  s+='- [ ] Zero errors de severidade "error"\\n';
+  s+='- [ ] Testes existentes continuam passando\\n';
+  s+='- [ ] Code review aprovado\\n\\n';
+  if(p.warnCount>0){
+    s+='**US-02**: Como tech lead, quero reduzir os '+p.warnCount+' warnings de '+ctx.area.toLowerCase()+'\\n';
+    s+='para melhorar a qualidade geral do codebase.\\n\\n';
+  }
+  s+='### Tasks (priorizadas por severidade)\\n\\n';
+  var taskNum=1;
+  // Errors first, then warnings, then info
+  ['error','warning','info'].forEach(function(sev){
+    var sevIssues=p.issues.filter(function(d){return d.sev===sev;});
+    if(sevIssues.length===0)return;
+    s+='#### '+sev.toUpperCase()+'S ('+sevIssues.length+')\\n\\n';
+    sevIssues.forEach(function(d){
+      s+='- [ ] **Task-'+String(taskNum).padStart(2,'0')+'**: '+d.code+' em '+(d.file||'(geral)');
+      if(d.line) s+=':'+d.line;
+      s+='\\n';
+      s+='  - Descrição: '+d.msg+'\\n';
+      if(d.suggestion) s+='  - Sugestão: '+d.suggestion+'\\n';
+      s+='  - Estimativa: '+(sev==='error'?'2-4h':'1-2h')+'\\n';
+      s+='  - Prioridade: '+(sev==='error'?'🔴 Alta':sev==='warning'?'🟡 Média':'🔵 Baixa')+'\\n';
+      taskNum++;
+    });
+    s+='\\n';
+  });
+  s+='### Definition of Done\\n';
+  s+='- [ ] Todas as tasks completadas\\n';
+  s+='- [ ] Sentinel score >= '+(p.threshold||70)+'%\\n';
+  s+='- [ ] Testes escritos e passando\\n';
+  s+='- [ ] Documentação atualizada se necessário\\n';
+  s+='- [ ] PR revisado e aprovado\\n';
+  return s;
+}
+
+function buildSOLID(p,ctx){
+  var byF=groupByFile(p.issues);
+  var files=Object.keys(byF);
+  var s='# SOLID Analysis & C4 Architecture\\n\\n';
+  if(ctx.solid&&ctx.solid.length>0){
+    s+='## Princípios SOLID Relevantes\\n\\n';
+    var solidDesc={
+      SRP:'**Single Responsibility Principle** — Cada módulo/classe deve ter apenas uma razão para mudar.',
+      OCP:'**Open/Closed Principle** — Aberto para extensão, fechado para modificação.',
+      LSP:'**Liskov Substitution Principle** — Subtipos devem ser substituíveis por seus tipos base.',
+      ISP:'**Interface Segregation Principle** — Interfaces específicas são melhores que uma interface geral.',
+      DIP:'**Dependency Inversion Principle** — Dependa de abstrações, não de implementações concretas.'
+    };
+    ctx.solid.forEach(function(p2){
+      s+=solidDesc[p2]||p2;
+      s+='\\n\\n';
+    });
+    s+='### Análise por Arquivo\\n\\n';
+    s+='Para cada arquivo com issues, analise quais princípios SOLID estão sendo violados:\\n\\n';
+    files.forEach(function(f){
+      s+='- **'+f+'** ('+byF[f].length+' issues): Avalie se há violação de '+ctx.solid.join(', ')+'\\n';
+    });
+    s+='\\n';
+  }
+  if(ctx.c4){
+    s+='## C4 Model — Visão Arquitetural\\n\\n';
+    s+='### Instruções\\n'+ctx.c4+'\\n\\n';
+    s+='### Nível 1 — Context\\n';
+    s+='Descreva como o sistema se relaciona com usuários e sistemas externos.\\n';
+    s+='Identifique quais pontos de entrada são afetados pelas issues encontradas.\\n\\n';
+    s+='### Nível 2 — Container\\n';
+    s+='Mapeie os containers (API, frontend, banco, etc) e identifique\\n';
+    s+='em quais containers estão os arquivos afetados.\\n\\n';
+    s+='### Nível 3 — Component\\n';
+    s+='Detalhe os componentes internos afetados:\\n\\n';
+    files.forEach(function(f){
+      s+='- **'+f+'**: Componente a ser documentado com suas responsabilidades e dependências\\n';
+    });
+    s+='\\n### Nível 4 — Code\\n';
+    s+='Gere diagramas UML ou Mermaid para os módulos que precisam de refatoração.\\n';
+  }
+  if(!ctx.solid||ctx.solid.length===0&&!ctx.c4){
+    s+='> Análise SOLID/C4 não é o foco principal deste validator,\\n';
+    s+='> mas recomenda-se avaliar os princípios SRP e DIP nos arquivos afetados.\\n';
+  }
+  return s;
+}
+
+function buildAgent(p,ctx){
+  var byF=groupByFile(p.issues);
+  var files=Object.keys(byF);
+  var s='# Agent Prompt — '+p.validator+'\\n\\n';
+  s+='## Role\\n';
+  s+='Você é um '+ctx.agentRole+'.\\n';
+  s+='Seu objetivo é corrigir todos os issues de '+ctx.area.toLowerCase()+' reportados pelo Sentinel Method.\\n\\n';
+  s+='## Context\\n';
+  s+='- Validator: '+p.validator+'\\n';
+  s+='- Score atual: '+(p.score!==null?p.score+'%':'N/A')+'\\n';
+  s+='- Threshold: '+(p.threshold!==null?p.threshold+'%':'N/A')+'\\n';
+  s+='- Issues: '+p.issues.length+' ('+p.errorCount+' errors, '+p.warnCount+' warnings, '+p.infoCount+' info)\\n';
+  s+='- Arquivos: '+files.length+'\\n\\n';
+  s+='## Issues Detalhadas\\n\\n';
+  files.forEach(function(f){
+    s+='### '+f+'\\n';
+    s+=issueList(byF[f])+'\\n\\n';
+  });
+  s+='## Instruções de Execução\\n\\n';
+  s+='1. **Leia** cada arquivo afetado completamente antes de fazer alterações\\n';
+  s+='2. **Analise** o contexto de cada issue — nem todo issue requer a mesma correção\\n';
+  s+='3. **Priorize** errors > warnings > info\\n';
+  s+='4. **Implemente** as correções seguindo o padrão do código existente\\n';
+  s+='5. **Teste** após cada correção — rode os testes existentes\\n';
+  s+='6. **Documente** alterações não-óbvias com comentários inline\\n';
+  s+='7. **Valide** rodando sentinel validate após todas as correções\\n\\n';
+  s+='## Constraints\\n\\n';
+  s+='- NÃO quebre funcionalidades existentes\\n';
+  s+='- NÃO mude a API pública sem necessidade\\n';
+  s+='- NÃO adicione dependências sem justificativa\\n';
+  s+='- MANTENHA o estilo e padrões do projeto\\n';
+  s+='- Se um issue for falso positivo, documente o motivo com um comentário\\n';
+  if(ctx.owasp){
+    s+='\\n## OWASP Top 10 — Referência\\n\\n';
+    s+='Mapeie cada issue de segurança para a categoria OWASP correspondente:\\n';
+    s+='- A01: Broken Access Control\\n';
+    s+='- A02: Cryptographic Failures\\n';
+    s+='- A03: Injection\\n';
+    s+='- A07: Identification and Authentication Failures\\n';
+    s+='- A09: Security Logging and Monitoring Failures\\n';
+  }
+  s+='\\n## Expected Output\\n\\n';
+  s+='Após as correções, o score do validator '+p.validator+' deve ser >= '+(p.threshold||70)+'%.\\n';
+  s+='Commit message sugerido: "fix('+ctx.area.toLowerCase()+'): corrigir issues do Sentinel — '+p.validator+'"\\n';
+  return s;
+}
+
+function buildFull(p,ctx){
+  return [
+    buildContext(p),
+    '\\n---\\n',
+    buildTasks(p,ctx),
+    '\\n---\\n',
+    buildBDD(p,ctx),
+    '\\n---\\n',
+    buildTDD(p,ctx),
+    '\\n---\\n',
+    buildSOLID(p,ctx),
+    '\\n---\\n',
+    buildAgent(p,ctx)
+  ].join('\\n');
+}
+
+/* ── Spec Generator Entry Point ── */
+var currentSections={};
+function genSpec(g,type){
+  if(openMenu){openMenu.classList.remove('show');openMenu=null;}
+  var p=JSON.parse(document.getElementById('pd-'+g).textContent);
+  var ctx=VCtx[p.validator]||defaultCtx;
+  var titles={full:'📦 Spec Completa',bdd:'🧪 BDD Scenarios',tdd:'🔬 TDD Specs',tasks:'📋 Tasks + Stories',solid:'🏗️ SOLID + C4',agent:'🤖 Agent Prompt'};
+  var generators={full:buildFull,bdd:buildBDD,tdd:buildTDD,tasks:buildTasks,solid:buildSOLID,agent:buildAgent};
+
+  if(type==='full'){
+    // Show tabs for each section
+    currentSections={context:buildContext(p),tasks:buildTasks(p,ctx),bdd:buildBDD(p,ctx),tdd:buildTDD(p,ctx),solid:buildSOLID(p,ctx),agent:buildAgent(p,ctx),full:buildFull(p,ctx)};
+    var tabsHtml='';
+    var tabNames={full:'📦 Tudo',context:'📄 Contexto',tasks:'📋 Tasks',bdd:'🧪 BDD',tdd:'🔬 TDD',solid:'🏗️ SOLID/C4',agent:'🤖 Agent'};
+    Object.keys(tabNames).forEach(function(k,i){
+      tabsHtml+='<button class="modal-tab'+(i===0?' active':'')+'" onclick="showTab(\\x27'+k+'\\x27)">'+tabNames[k]+'</button>';
+    });
+    document.getElementById('modalTabs').innerHTML=tabsHtml;
+    document.getElementById('modalText').value=currentSections.full;
+  } else {
+    currentSections={};
+    document.getElementById('modalTabs').innerHTML='';
+    document.getElementById('modalText').value=(generators[type]||buildFull)(p,ctx);
+  }
+
+  document.getElementById('modalTitle').textContent=titles[type]||'🚀 Engineering Spec';
+  document.getElementById('modalSub').textContent=p.validator+' — '+p.issues.length+' issues | Score: '+(p.score!==null?p.score+'%':'N/A');
   document.getElementById('promptModal').classList.add('show');
 }
+
+function showTab(k){
+  if(!currentSections[k])return;
+  document.getElementById('modalText').value=currentSections[k];
+  document.querySelectorAll('.modal-tab').forEach(function(t){
+    t.classList.toggle('active',t.textContent.indexOf(k.charAt(0).toUpperCase())>=0||
+      (k==='full'&&t.textContent.indexOf('Tudo')>=0)||
+      (k==='context'&&t.textContent.indexOf('Contexto')>=0)||
+      (k==='tasks'&&t.textContent.indexOf('Tasks')>=0)||
+      (k==='bdd'&&t.textContent.indexOf('BDD')>=0)||
+      (k==='tdd'&&t.textContent.indexOf('TDD')>=0)||
+      (k==='solid'&&t.textContent.indexOf('SOLID')>=0)||
+      (k==='agent'&&t.textContent.indexOf('Agent')>=0)
+    );
+  });
+}
+
 function closeModal(){document.getElementById('promptModal').classList.remove('show');}
 function copyPrompt(){
   var t=document.getElementById('modalText');t.select();
   navigator.clipboard.writeText(t.value).then(function(){
     document.getElementById('copyFeedback').textContent='✓ Copiado!';
+    setTimeout(function(){document.getElementById('copyFeedback').textContent='';},2000);
+  });
+}
+function copyAll(){
+  var all=currentSections.full||document.getElementById('modalText').value;
+  navigator.clipboard.writeText(all).then(function(){
+    document.getElementById('copyFeedback').textContent='✓ Spec completa copiada!';
     setTimeout(function(){document.getElementById('copyFeedback').textContent='';},2000);
   });
 }
