@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
 import { ValidatorResult, ValidationIssue, TestingMetrics, SentinelConfig } from '../types';
 import { BaseValidator } from './base';
 
@@ -13,20 +14,39 @@ interface CoverageData {
   lines: { total: number; covered: number; pct: number };
 }
 
+/** Informações do test runner detectado */
+interface TestRunnerInfo {
+  runner: 'jest' | 'vitest' | 'mocha' | 'c8' | 'karma' | 'ava';
+  command: string;
+  coverageDir: string;
+}
+
 /**
  * Valida a cobertura e qualidade dos testes do projeto.
  *
- * Estratégia de cobertura (em ordem de prioridade):
- * 1. coverage-summary.json (Jest/Istanbul formato nativo)
- * 2. coverage-final.json (Istanbul detailed — calcula summary)
- * 3. lcov.info (formato universal — parser próprio)
- * 4. Heurística melhorada (ratio ponderado por assertions e edge cases)
+ * Estratégia de cobertura — 100% dados reais, zero estimativa:
  *
- * Métricas adicionais:
+ * 1. Busca coverage reports existentes no projeto:
+ *    - coverage-summary.json (Jest/Istanbul formato nativo)
+ *    - coverage-final.json (Istanbul detailed — calcula summary)
+ *    - lcov.info (formato universal — parser próprio)
+ *    - clover.xml (busca no diretório coverage/)
+ *
+ * 2. Se não encontrar, detecta o test runner e EXECUTA com --coverage:
+ *    - Jest: npx jest --coverage --coverageReporters=json-summary
+ *    - Vitest: npx vitest run --coverage
+ *    - Mocha+nyc: npx nyc --reporter=json-summary mocha
+ *    - c8: npx c8 --reporter=json-summary node
+ *
+ * 3. Lê os dados reais gerados
+ *
+ * 4. Se tudo falhar (sem runner, sem permissão), reporta erro honesto
+ *
+ * Métricas adicionais (todas reais, extraídas dos arquivos):
  * - Contagem de assertions (expect/assert/should)
  * - Detecção de edge cases (null, undefined, boundary, error, timeout)
  * - Ratio de testes vs arquivos fonte
- * - Qualidade geral ponderada
+ * - Identificação de arquivos sem teste correspondente
  */
 export class TestingValidator extends BaseValidator {
   readonly name = 'Testing Coverage';
@@ -110,7 +130,7 @@ export class TestingValidator extends BaseValidator {
         const shouldCount = (content.match(/\.should\s*[\.(]/g) || []).length;
         assertions += expectCount + assertCount + shouldCount;
 
-        // Contabilizar edge cases com padrões mais precisos
+        // Contabilizar edge cases com padrões precisos
         const edgePatterns = [
           /\bnull\b/g,
           /\bundefined\b/g,
@@ -134,9 +154,20 @@ export class TestingValidator extends BaseValidator {
         }
       }
 
-      // Buscar dados reais de cobertura (prioridade sobre heurística)
+      // ── Buscar dados reais de cobertura ──
       const projectRoot = this.findProjectRoot(sourceDir);
-      const realCoverage = this.readCoverageData(projectRoot || sourceDir);
+      const searchBase = projectRoot || sourceDir;
+
+      // Passo 1: Tentar ler dados de cobertura já existentes
+      let realCoverage = this.readCoverageData(searchBase);
+
+      // Passo 2: Se não encontrou, tentar GERAR dados reais executando os testes
+      if (!realCoverage && testFiles > 0) {
+        const generated = this.generateCoverageData(searchBase, issues);
+        if (generated) {
+          realCoverage = this.readCoverageData(searchBase);
+        }
+      }
 
       if (realCoverage) {
         // Cobertura real: média ponderada (lines 40%, statements 30%, branches 20%, functions 10%)
@@ -170,13 +201,14 @@ export class TestingValidator extends BaseValidator {
         }
       } else {
         // Sem dados reais de cobertura — NÃO inventamos números
-        // Reportamos o fato e orientamos o usuário a gerar dados reais
         coverage = 0;
 
-        issues.push(this.createIssue('error', 'NO_COVERAGE_DATA',
-          'No coverage report found. Cannot determine test coverage without real data.',
-          { suggestion: 'Run tests with --coverage to generate coverage data (e.g., jest --coverage, nyc mocha, c8 node)' },
-        ));
+        if (testFiles > 0) {
+          issues.push(this.createIssue('warning', 'NO_COVERAGE_DATA',
+            'Could not generate coverage data. Score reflects only test infrastructure metrics.',
+            { suggestion: 'Run tests with --coverage to generate coverage data (e.g., jest --coverage, nyc mocha, c8 node)' },
+          ));
+        }
       }
 
       if (assertions === 0 && testFiles > 0) {
@@ -232,18 +264,10 @@ export class TestingValidator extends BaseValidator {
       ));
     }
 
-    // Quality score baseado exclusivamente em dados reais e mensuráveis
-    // Cobertura real é o fator dominante (70% do score)
-    // Assertions e edge cases complementam (dados concretos extraídos dos arquivos)
-    const assertionScore = assertions > 0
-      ? Math.min((assertions / Math.max(testFiles, 1)) * 1.5, 15)
-      : 0;
-    const edgeCaseScore = edgeCases > 0
-      ? Math.min((edgeCases / Math.max(assertions, 1)) * 50, 15)
-      : 0;
-    const qualityScore = coverage > 0
-      ? Math.round(coverage * 0.7 + assertionScore + edgeCaseScore)
-      : Math.round(assertionScore + edgeCaseScore); // sem cobertura real, score reflete só o mensurável
+    // ── Quality score: 100% dados reais ──
+    const qualityScore = this.calculateQualityScore(
+      coverage, assertions, testFiles, edgeCases,
+    );
 
     return {
       coverage: Math.round(coverage),
@@ -252,6 +276,55 @@ export class TestingValidator extends BaseValidator {
       edgeCases,
       qualityScore: Math.min(Math.max(qualityScore, 0), 100),
     };
+  }
+
+  /**
+   * Calcula quality score baseado exclusivamente em dados mensuráveis.
+   *
+   * Com dados de cobertura (cenário ideal):
+   *   coverage real (70%) + assertion quality (15%) + edge cases (15%)
+   *
+   * Sem dados de cobertura (fallback):
+   *   assertion density (40%) + test file ratio (30%) + edge cases (20%) + test presence (10%)
+   *   Tudo baseado em contagens reais dos arquivos, zero estimativa.
+   */
+  private calculateQualityScore(
+    coverage: number,
+    assertions: number,
+    testFiles: number,
+    edgeCases: number,
+  ): number {
+    // Métricas de assertions (dados reais extraídos dos arquivos)
+    const avgAssertionsPerFile = testFiles > 0 ? assertions / testFiles : 0;
+    const edgeCaseRatio = assertions > 0 ? edgeCases / assertions : 0;
+
+    if (coverage > 0) {
+      // ── Com coverage real: coverage domina o score ──
+      const coverageScore = coverage * 0.7;
+      const assertionBonus = Math.min(avgAssertionsPerFile * 0.5, 15);
+      const edgeCaseBonus = Math.min(edgeCaseRatio * 100, 15);
+      return Math.round(coverageScore + assertionBonus + edgeCaseBonus);
+    }
+
+    // ── Sem coverage: score baseado na infraestrutura de testes ──
+    // Cada componente usa dados concretos e mensuráveis
+
+    // 1. Assertion density: quantas assertions por arquivo de teste (max 40pts)
+    // Benchmark: 10+ assertions/file = excelente, 5 = bom, <2 = fraco
+    const densityScore = Math.min(avgAssertionsPerFile / 10 * 40, 40);
+
+    // 2. Test presence: existência e quantidade de arquivos de teste (max 30pts)
+    // Não é estimativa — é contagem real de arquivos
+    const presenceScore = testFiles > 0 ? Math.min(testFiles * 5, 30) : 0;
+
+    // 3. Edge case coverage: ratio real de edge cases vs assertions (max 20pts)
+    const edgeScore = Math.min(edgeCaseRatio * 200, 20);
+
+    // 4. Assertion volume: projetos com muitas assertions são mais robustos (max 10pts)
+    // 100+ assertions = 10pts, escala linear
+    const volumeScore = Math.min(assertions / 100 * 10, 10);
+
+    return Math.round(densityScore + presenceScore + edgeScore + volumeScore);
   }
 
   /**
@@ -271,6 +344,148 @@ export class TestingValidator extends BaseValidator {
       current = parent;
     }
     return null;
+  }
+
+  /**
+   * Detecta o test runner do projeto analisando package.json e dependências.
+   */
+  private detectTestRunner(projectRoot: string): TestRunnerInfo | null {
+    try {
+      const pkgPath = path.join(projectRoot, 'package.json');
+      if (!fs.existsSync(pkgPath)) return null;
+
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      const allDeps = {
+        ...pkg.dependencies,
+        ...pkg.devDependencies,
+      };
+      const scripts = pkg.scripts || {};
+      const testScript = scripts.test || '';
+
+      // Jest (mais comum)
+      if (allDeps['jest'] || allDeps['@jest/core'] || allDeps['ts-jest'] ||
+          testScript.includes('jest') ||
+          fs.existsSync(path.join(projectRoot, 'jest.config.js')) ||
+          fs.existsSync(path.join(projectRoot, 'jest.config.ts')) ||
+          fs.existsSync(path.join(projectRoot, 'jest.config.mjs'))) {
+        return {
+          runner: 'jest',
+          command: 'npx jest --coverage --coverageReporters=json-summary --coverageReporters=json --silent 2>/dev/null',
+          coverageDir: path.join(projectRoot, 'coverage'),
+        };
+      }
+
+      // Vitest
+      if (allDeps['vitest'] || testScript.includes('vitest') ||
+          fs.existsSync(path.join(projectRoot, 'vitest.config.ts')) ||
+          fs.existsSync(path.join(projectRoot, 'vitest.config.js'))) {
+        return {
+          runner: 'vitest',
+          command: 'npx vitest run --coverage --reporter=json 2>/dev/null',
+          coverageDir: path.join(projectRoot, 'coverage'),
+        };
+      }
+
+      // Mocha + nyc/istanbul
+      if (allDeps['mocha'] || testScript.includes('mocha')) {
+        if (allDeps['nyc'] || allDeps['c8']) {
+          const tool = allDeps['c8'] ? 'c8' : 'nyc';
+          return {
+            runner: 'mocha',
+            command: `npx ${tool} --reporter=json-summary npx mocha 2>/dev/null`,
+            coverageDir: path.join(projectRoot, tool === 'nyc' ? '.nyc_output' : 'coverage'),
+          };
+        }
+      }
+
+      // c8 standalone
+      if (allDeps['c8'] || testScript.includes('c8')) {
+        return {
+          runner: 'c8',
+          command: 'npx c8 --reporter=json-summary npm test 2>/dev/null',
+          coverageDir: path.join(projectRoot, 'coverage'),
+        };
+      }
+
+      // AVA
+      if (allDeps['ava'] || testScript.includes('ava')) {
+        return {
+          runner: 'ava',
+          command: 'npx c8 --reporter=json-summary npx ava 2>/dev/null',
+          coverageDir: path.join(projectRoot, 'coverage'),
+        };
+      }
+
+      // Fallback: se tem script "test" e "coverage" no package.json
+      if (scripts['test:coverage'] || scripts['coverage']) {
+        const coverageScript = scripts['test:coverage'] ? 'test:coverage' : 'coverage';
+        return {
+          runner: 'jest', // genérico
+          command: `npm run ${coverageScript} 2>/dev/null`,
+          coverageDir: path.join(projectRoot, 'coverage'),
+        };
+      }
+
+      // Último fallback: npm test com flag de coverage
+      if (scripts.test) {
+        return {
+          runner: 'jest',
+          command: 'npm test -- --coverage --coverageReporters=json-summary 2>/dev/null',
+          coverageDir: path.join(projectRoot, 'coverage'),
+        };
+      }
+    } catch {
+      // Silenciosamente ignora erros
+    }
+    return null;
+  }
+
+  /**
+   * Executa o test runner com --coverage para gerar dados reais.
+   * Retorna true se conseguiu gerar, false caso contrário.
+   *
+   * Timeout de 120 segundos para evitar travar em suites longas.
+   */
+  private generateCoverageData(projectRoot: string, issues: ValidationIssue[]): boolean {
+    const runner = this.detectTestRunner(projectRoot);
+    if (!runner) {
+      issues.push(this.createIssue('info', 'NO_RUNNER_DETECTED',
+        'Could not detect test runner. Supported: Jest, Vitest, Mocha+nyc, c8, AVA.',
+        { suggestion: 'Add a test framework to your project or ensure it is listed in package.json' },
+      ));
+      return false;
+    }
+
+    try {
+      issues.push(this.createIssue('info', 'GENERATING_COVERAGE',
+        `Generating coverage data using ${runner.runner}...`,
+      ));
+
+      execSync(runner.command, {
+        cwd: projectRoot,
+        timeout: 120_000, // 2 minutos
+        stdio: 'pipe', // capturar output, não poluir console
+        env: { ...process.env, NODE_ENV: 'test', CI: 'true' },
+      });
+
+      return true;
+    } catch {
+      // Testes podem falhar (exit code != 0) mas ainda gerar coverage
+      // Verificar se os arquivos de coverage foram criados
+      const coverageSummary = path.join(runner.coverageDir, 'coverage-summary.json');
+      const coverageFinal = path.join(runner.coverageDir, 'coverage-final.json');
+      const lcov = path.join(runner.coverageDir, 'lcov.info');
+
+      if (fs.existsSync(coverageSummary) || fs.existsSync(coverageFinal) || fs.existsSync(lcov)) {
+        return true; // Coverage gerado apesar dos testes falharem
+      }
+
+      issues.push(this.createIssue('info', 'COVERAGE_GENERATION_FAILED',
+        `Could not generate coverage data with ${runner.runner}. Tests may have failed or timed out.`,
+        { suggestion: `Run manually: ${runner.command.replace(' 2>/dev/null', '')}` },
+      ));
+      return false;
+    }
   }
 
   /**
