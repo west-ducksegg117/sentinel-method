@@ -42,7 +42,7 @@ describe('CLI: sentinel command', () => {
       expect(output).toContain('Dependency Analysis');
       expect(output).toContain('Documentation Coverage');
       expect(output).toContain('Code Style');
-      expect(output).toContain('Total: 7 validators');
+      expect(output).toContain('Total: 14 validators');
     });
   });
 
@@ -103,7 +103,7 @@ describe('CLI: sentinel command', () => {
       expect(parsed).toHaveProperty('success');
       expect(parsed).toHaveProperty('results');
       expect(parsed).toHaveProperty('summary');
-      expect(parsed.results).toHaveLength(7);
+      expect(parsed.results).toHaveLength(14);
     });
 
     test('deve gerar output Markdown com -f markdown', () => {

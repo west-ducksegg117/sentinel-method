@@ -8,6 +8,13 @@ import { MaintainabilityValidator } from './validators/maintainability';
 import { DependencyValidator } from './validators/dependency';
 import { DocumentationValidator } from './validators/documentation';
 import { CodeStyleValidator } from './validators/code-style';
+import { ArchitectureValidator } from './validators/architecture';
+import { ApiContractValidator } from './validators/api-contract';
+import { AccessibilityValidator } from './validators/accessibility';
+import { I18nValidator } from './validators/i18n';
+import { ErrorHandlingValidator } from './validators/error-handling';
+import { TypeSafetyValidator } from './validators/type-safety';
+import { DeadCodeValidator } from './validators/dead-code';
 import { FileCollector } from './file-collector';
 import { Reporter } from './reporter';
 import { ConfigLoader } from './config';
@@ -16,8 +23,9 @@ import { ConfigLoader } from './config';
  * Motor principal do Sentinel Method.
  *
  * Orquestra o pipeline de validação com suporte a:
- * - 7 validators nativos (testing, security, performance, maintainability,
- *   dependency, documentation, code-style)
+ * - 14 validators nativos (testing, security, performance, maintainability,
+ *   dependency, documentation, code-style, architecture, api-contract,
+ *   accessibility, i18n, error-handling, type-safety, dead-code)
  * - Execução paralela via Promise.all
  * - Error recovery por validator (um erro não interrompe os demais)
  * - Validators customizados via registerValidator()
@@ -45,6 +53,13 @@ export class Sentinel {
       new DependencyValidator(this.config),
       new DocumentationValidator(this.config),
       new CodeStyleValidator(this.config),
+      new ArchitectureValidator(this.config),
+      new ApiContractValidator(this.config),
+      new AccessibilityValidator(this.config),
+      new I18nValidator(this.config),
+      new ErrorHandlingValidator(this.config),
+      new TypeSafetyValidator(this.config),
+      new DeadCodeValidator(this.config),
     ];
   }
 

@@ -73,7 +73,7 @@ export function deepClone<T>(obj: T): T {
     const sentinel = new Sentinel({ testingThreshold: 50, maintainabilityScore: 50 });
     const result = await sentinel.validate(projectDir);
 
-    expect(result.results).toHaveLength(7);
+    expect(result.results).toHaveLength(14);
     expect(result.summary.passedChecks).toBeGreaterThanOrEqual(5);
     expect(result.exitCode).toBeDefined();
     expect(result.report.length).toBeGreaterThan(0);
@@ -127,8 +127,8 @@ const password = "admin123";
 
     const result = await sentinel.validate(projectDir);
 
-    // Deve ter 8 validators (7 nativos + 1 custom)
-    expect(result.results).toHaveLength(8);
+    // Deve ter 15 validators (14 nativos + 1 custom)
+    expect(result.results).toHaveLength(15);
     expect(result.results.some(r => r.validator === 'License Check')).toBe(true);
   });
 
@@ -173,11 +173,11 @@ const password = "admin123";
     const result = await sentinel.validate(projectDir);
 
     // Todos os 7 validators devem ter rodado
-    expect(result.results).toHaveLength(7);
+    expect(result.results).toHaveLength(14);
 
     // Cada resultado deve ter um nome de validator único
     const names = result.results.map(r => r.validator);
-    expect(new Set(names).size).toBe(7);
+    expect(new Set(names).size).toBe(14);
   });
 
   // ── Contagem de arquivos ──

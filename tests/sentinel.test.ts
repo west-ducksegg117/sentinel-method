@@ -46,7 +46,7 @@ describe('Sentinel', () => {
     const sentinel = new Sentinel();
     const results = await sentinel.runPipeline(testDir);
 
-    expect(results).toHaveLength(7);
+    expect(results).toHaveLength(14);
     expect(results[0].validator).toBe('Testing Coverage');
     expect(results[1].validator).toBe('Security Scanning');
     expect(results[2].validator).toBe('Performance Benchmarks');
@@ -108,11 +108,11 @@ describe('Sentinel', () => {
 
     const results = await sentinel.runPipeline(testDir);
 
-    // 7 nativos + 1 failing = 8
-    expect(results).toHaveLength(8);
+    // 14 nativos + 1 failing = 15
+    expect(results).toHaveLength(15);
 
     // O último resultado deve ser o do validator com erro
-    const failResult = results[7];
+    const failResult = results[14];
     expect(failResult.validator).toBe('Failing Validator');
     expect(failResult.passed).toBe(false);
     expect(failResult.issues[0].code).toBe('VALIDATOR_ERROR');
@@ -130,6 +130,6 @@ describe('Sentinel', () => {
     const result = await sentinel.validate(testDir);
 
     expect(result).toBeDefined();
-    expect(result.results).toHaveLength(7);
+    expect(result.results).toHaveLength(14);
   });
 });

@@ -117,8 +117,15 @@ export class Reporter {
         'Performance Benchmarks': 'Performance',
         'Maintainability Checker': 'Maintainability',
         'Dependency Analysis': 'Dependencies',
-        'Documentation Coverage': 'Documentation',
+        'Documentation Coverage': 'Docs',
         'Code Style': 'Style',
+        'Architecture Analysis': 'Architecture',
+        'API Contracts': 'API',
+        'Accessibility (WCAG)': 'A11y',
+        'Internationalization': 'i18n',
+        'Error Handling': 'Errors',
+        'Type Safety': 'Types',
+        'Dead Code Detection': 'Dead Code',
       };
       return short[r.validator] || r.validator;
     });
@@ -659,6 +666,69 @@ var VCtx={
     bddFocus:null,
     tddFocus:'testes de linting automatizado e conformidade com style guide',
     agentRole:'Senior Developer especialista em clean code e code review'
+  },
+  'Architecture Analysis':{
+    area:'Arquitetura',
+    owasp:false,
+    solid:['SRP','OCP','LSP','ISP','DIP'],
+    c4:'Analise dependências circulares, violações de camadas e god classes. Documente usando C4 model completo.',
+    bddFocus:'cenários de isolamento de camadas e inversão de dependência',
+    tddFocus:'testes de integração entre módulos e validação de contratos entre camadas',
+    agentRole:'Software Architect especialista em clean architecture, DDD e design patterns'
+  },
+  'API Contracts':{
+    area:'Contratos de API',
+    owasp:true,
+    solid:['SRP','ISP','DIP'],
+    c4:'Mapeie todos os endpoints, seus contratos de entrada/saída, middlewares e dependências externas.',
+    bddFocus:'cenários de contrato de API: request/response, error handling, validação de input',
+    tddFocus:'testes de integração de API, contract testing, schema validation',
+    agentRole:'Backend Engineer especialista em REST API design e API-first development'
+  },
+  'Accessibility (WCAG)':{
+    area:'Acessibilidade',
+    owasp:false,
+    solid:[],
+    c4:'Identifique componentes de UI que precisam de remedição WCAG. Mapeie fluxos de navegação por teclado.',
+    bddFocus:'cenários de acessibilidade: screen reader, navegação por teclado, contraste, ARIA',
+    tddFocus:'testes automatizados de acessibilidade com axe-core, jest-axe, pa11y',
+    agentRole:'Frontend Engineer especialista em WCAG 2.1 e design inclusivo'
+  },
+  'Internationalization':{
+    area:'Internacionalização',
+    owasp:false,
+    solid:['OCP','DIP'],
+    c4:'Mapeie componentes com strings hardcoded. Identifique o fluxo de tradução e formatação de dados.',
+    bddFocus:'cenários de tradução, formatação de datas/moedas por locale, pluralização',
+    tddFocus:'testes de formatação com diferentes locales (en-US, pt-BR, ja-JP, ar-SA)',
+    agentRole:'Frontend Engineer especialista em i18n/L10n e react-intl/next-intl'
+  },
+  'Error Handling':{
+    area:'Tratamento de Erros',
+    owasp:false,
+    solid:['SRP','OCP'],
+    c4:'Mapeie o fluxo de erros do sistema: onde são gerados, propagados, logados e apresentados ao usuário.',
+    bddFocus:'cenários de erro: falhas de rede, timeout, dados inválidos, erros inesperados',
+    tddFocus:'testes de error boundary, retry logic, graceful degradation',
+    agentRole:'Senior Engineer especialista em resilience patterns e error recovery'
+  },
+  'Type Safety':{
+    area:'Segurança de Tipos',
+    owasp:false,
+    solid:['LSP','DIP'],
+    c4:null,
+    bddFocus:null,
+    tddFocus:'testes de type narrowing, discriminated unions e validação de runtime types',
+    agentRole:'TypeScript Engineer especialista em type-level programming e strict mode'
+  },
+  'Dead Code Detection':{
+    area:'Código Morto',
+    owasp:false,
+    solid:['SRP'],
+    c4:'Identifique módulos com alta porcentagem de código morto. Priorize remoção por impacto no bundle size.',
+    bddFocus:null,
+    tddFocus:'testes de regressão após remoção de código morto',
+    agentRole:'Senior Developer especialista em refactoring e codebase hygiene'
   }
 };
 var defaultCtx={area:'Qualidade',owasp:false,solid:['SRP'],c4:null,bddFocus:'cenários de validação',tddFocus:'testes unitários',agentRole:'Senior Software Engineer'};
