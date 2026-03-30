@@ -34,6 +34,43 @@ export type { CacheEntry, CachedValidatorResult } from './cache';
 export { PluginLoader } from './plugin-loader';
 export type { SentinelPlugin, PluginRegistry } from './plugin-loader';
 
+// Sprint 5 — Intelligence Layer
+export { BusinessGates } from './business-gates';
+export type {
+  BusinessDomain,
+  BusinessGateConfig,
+  BusinessGateThreshold,
+  BusinessGateResult,
+  BusinessGateEvaluation,
+  RiskSummary,
+  ScoreInput,
+} from './business-gates';
+
+export { RiskBudget } from './risk-budget';
+export type {
+  RiskBudgetConfig,
+  DeployRiskAssessment,
+  FindingSummary,
+  SprintBudgetStatus,
+  ApprovalRequest,
+  RiskTrend,
+  Severity,
+} from './risk-budget';
+
+export { FitnessEngine } from './fitness-functions';
+export type {
+  FitnessFunctionType,
+  FitnessFunctionRule,
+  FitnessEvaluation,
+  FitnessViolation,
+  FitnessReport,
+  FitnessInput,
+  FileMetrics,
+  DependencyEdge,
+  ModuleCoverage,
+  PerformanceMetric,
+} from './fitness-functions';
+
 export type {
   SentinelConfig,
   ValidationResult,

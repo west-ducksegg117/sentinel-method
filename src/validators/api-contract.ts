@@ -1,4 +1,18 @@
 import { BaseValidator } from './base';
+import {
+  extractRouteHandlers,
+  hasErrorHandling,
+  hasInconsistentStatusCodes,
+  hasInputValidation,
+  hasResponseType,
+  findHardcodedUrls,
+  hasAuthMiddleware,
+  checkRestNaming,
+  isListEndpoint,
+  hasPagination,
+  findN1QueryPatterns,
+  hasRateLimiting,
+} from './api-contract-helpers';
 
 /**
  * Métricas do validador de contrato API
@@ -79,7 +93,7 @@ export class ApiContractValidator extends BaseValidator {
     const issues: any[] = [];
 
     // Extrai blocos de handlers de rota
-    const routeBlocks = this.extractRouteHandlers(content);
+    const routeBlocks = extractRouteHandlers(content);
 
     if (routeBlocks.length === 0) {
       return issues;
@@ -91,7 +105,7 @@ export class ApiContractValidator extends BaseValidator {
       let blockIssues = 0;
 
       // 1. Verifica respostas de erro ausentes
-      if (!this.hasErrorHandling(block.content)) {
+      if (!hasErrorHandling(block.content)) {
         issues.push(
           this.createIssue(
             'warning',
@@ -108,7 +122,7 @@ export class ApiContractValidator extends BaseValidator {
       }
 
       // 2. Verifica status codes inconsistentes
-      if (this.hasInconsistentStatusCodes(block.content)) {
+      if (hasInconsistentStatusCodes(block.content)) {
         issues.push(
           this.createIssue(
             'info',
@@ -124,7 +138,7 @@ export class ApiContractValidator extends BaseValidator {
       }
 
       // 3. Verifica validação de entrada ausente
-      if (!this.hasInputValidation(block.content)) {
+      if (!hasInputValidation(block.content)) {
         issues.push(
           this.createIssue(
             'error',
@@ -141,7 +155,7 @@ export class ApiContractValidator extends BaseValidator {
       }
 
       // 4. Verifica type/schema de resposta ausente
-      if (!this.hasResponseType(block.content)) {
+      if (!hasResponseType(block.content)) {
         issues.push(
           this.createIssue(
             'warning',
@@ -157,7 +171,7 @@ export class ApiContractValidator extends BaseValidator {
       }
 
       // 5. Verifica URLs hardcoded
-      const hardcodedUrls = this.findHardcodedUrls(block.content);
+      const hardcodedUrls = findHardcodedUrls(block.content);
       if (hardcodedUrls.length > 0) {
         issues.push(
           this.createIssue(
@@ -175,7 +189,7 @@ export class ApiContractValidator extends BaseValidator {
       }
 
       // 6. Verifica middleware de autenticação ausente
-      if (!this.hasAuthMiddleware(block.content)) {
+      if (!hasAuthMiddleware(block.content)) {
         issues.push(
           this.createIssue(
             'info',
@@ -191,7 +205,7 @@ export class ApiContractValidator extends BaseValidator {
       }
 
       // 7. Verifica violações de REST naming
-      const restViolation = this.checkRestNaming(block.route || '');
+      const restViolation = checkRestNaming(block.route || '');
       if (restViolation) {
         issues.push(
           this.createIssue(
@@ -209,8 +223,8 @@ export class ApiContractValidator extends BaseValidator {
 
       // 8. Verifica paginação ausente em GET list endpoints
       if (
-        this.isListEndpoint(block.route || '', block.content) &&
-        !this.hasPagination(block.content)
+        isListEndpoint(block.route || '', block.content) &&
+        !hasPagination(block.content)
       ) {
         issues.push(
           this.createIssue(
@@ -227,7 +241,7 @@ export class ApiContractValidator extends BaseValidator {
       }
 
       // 9. Verifica padrões N+1 query
-      const n1Patterns = this.findN1QueryPatterns(block.content);
+      const n1Patterns = findN1QueryPatterns(block.content);
       if (n1Patterns.length > 0) {
         issues.push(
           this.createIssue(
@@ -245,7 +259,7 @@ export class ApiContractValidator extends BaseValidator {
       }
 
       // 10. Verifica rate limiting ausente
-      if (!this.hasRateLimiting(block.content)) {
+      if (!hasRateLimiting(block.content)) {
         issues.push(
           this.createIssue(
             'info',
@@ -268,249 +282,6 @@ export class ApiContractValidator extends BaseValidator {
     return issues;
   }
 
-  /**
-   * Extrai blocos de handlers de rotas do arquivo
-   * Suporta Express, Fastify, Koa, NestJS e Next.js
-   */
-  private extractRouteHandlers(
-    content: string
-  ): Array<{ name: string; route?: string; content: string; line: number }> {
-    const handlers: Array<{
-      name: string;
-      route?: string;
-      content: string;
-      line: number;
-    }> = [];
-
-    // Express/Fastify: app.get/post/put/delete/patch('route', handler)
-    const expressPattern = /(?:app|router)\.(get|post|put|delete|patch)\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*([^)]+)\)\s*\{([^}]*)\}/gs;
-    let match;
-
-    while ((match = expressPattern.exec(content)) !== null) {
-      const method = match[1];
-      const route = match[2];
-      const handler = match[3];
-      const body = match[4];
-      const line = content.substring(0, match.index).split('\n').length;
-
-      handlers.push({
-        name: `${method.toUpperCase()} ${route}`,
-        route,
-        content: `${handler}\n${body}`,
-        line,
-      });
-    }
-
-    // NestJS decorators: @Get/@Post/@Put/@Delete
-    const nestPattern =
-      /@(Get|Post|Put|Delete|Patch)\s*\(\s*['"`]?([^'"`\)]*?)['"`]?\s*\)\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{([^}]*)\}/gs;
-
-    while ((match = nestPattern.exec(content)) !== null) {
-      const method = match[1];
-      const route = match[2];
-      const functionName = match[3];
-      const body = match[4];
-      const line = content.substring(0, match.index).split('\n').length;
-
-      handlers.push({
-        name: `${functionName} (${method})`,
-        route,
-        content: body,
-        line,
-      });
-    }
-
-    // Next.js: export default function handler / export async function GET/POST
-    const nextPattern = /export\s+(?:default\s+)?(?:async\s+)?function\s+(?:handler|(?:GET|POST|PUT|DELETE|PATCH))\s*\([^)]*\)\s*\{([^}]*)\}/gs;
-
-    while ((match = nextPattern.exec(content)) !== null) {
-      const body = match[1];
-      const line = content.substring(0, match.index).split('\n').length;
-
-      handlers.push({
-        name: 'Next.js handler',
-        content: body,
-        line,
-      });
-    }
-
-    return handlers;
-  }
-
-  /**
-   * Verifica se o handler tem tratamento de erro
-   */
-  private hasErrorHandling(content: string): boolean {
-    const errorPatterns = [
-      /res\.status\s*\(\s*[4-5]\d{2}\s*\)/,
-      /res\.send\s*\(\s*\{.*?error/,
-      /throw\s+new\s+Error/,
-      /catch\s*\(/,
-      /return\s+res\.json\s*\(\s*\{.*?(error|message)/,
-      /HTTPException|BadRequest|Unauthorized|Forbidden|NotFound/,
-    ];
-
-    return errorPatterns.some((pattern) => pattern.test(content));
-  }
-
-  /**
-   * Verifica se há status codes inconsistentes
-   */
-  private hasInconsistentStatusCodes(content: string): boolean {
-    // Detecta res.send() sem status code explícito
-    const sendWithoutStatus = /res\.send\s*\([^)]*\)(?!\s*\n.*res\.status)/;
-    // Mas ignora se houver status() logo antes
-    const hasStatusBefore = /res\.status\s*\([^)]*\)\s*\.send/;
-
-    return (
-      sendWithoutStatus.test(content) && !hasStatusBefore.test(content)
-    );
-  }
-
-  /**
-   * Verifica se há validação de entrada
-   */
-  private hasInputValidation(content: string): boolean {
-    const validationPatterns = [
-      /req\.body\s*\??\./,
-      /req\.params\s*\??\./,
-      /req\.query\s*\??\./,
-      /validate\s*\(/i,
-      /joi\./i,
-      /zod\./i,
-      /schema/i,
-      /@Body\(\)/,
-      /@Param\(\)/,
-      /@Query\(\)/,
-      /if\s*\(!.*\)\s*return/,
-      /guard\|pipe/i,
-    ];
-
-    return validationPatterns.some((pattern) => pattern.test(content));
-  }
-
-  /**
-   * Verifica se há type/schema de resposta
-   */
-  private hasResponseType(content: string): boolean {
-    const typePatterns = [
-      /:\s*(?:Promise\s*<|Observable\s*<)?[A-Z]\w+(?:\[\])?(?:>)?/,
-      /@ApiResponse/,
-      /interface\s+\w+Response/,
-      /type\s+\w+Response\s*=/,
-      /as const/,
-      /satisfies\s+\w+/,
-      /interface\s+\/\/.*?@api/i,
-    ];
-
-    return typePatterns.some((pattern) => pattern.test(content));
-  }
-
-  /**
-   * Encontra URLs hardcoded
-   */
-  private findHardcodedUrls(content: string): string[] {
-    const urls: string[] = [];
-    // Busca strings que parecem URLs (http://, https://, ou paths com domínios)
-    const urlPattern =
-      /(['"`])(https?:\/\/[^'"`]+|\/api\/[a-zA-Z]+\.com[^'"`]*)\1/g;
-    let match;
-
-    while ((match = urlPattern.exec(content)) !== null) {
-      urls.push(match[2]);
-    }
-
-    return urls;
-  }
-
-  /**
-   * Verifica se há middleware de autenticação
-   */
-  private hasAuthMiddleware(content: string): boolean {
-    const authPatterns = [
-      /auth(?:ent|oriz)/i,
-      /jwt/i,
-      /bearer/i,
-      /token/i,
-      /isAuthenticated/i,
-      /@UseGuards/,
-      /middleware.*auth/i,
-      /req\.user/,
-    ];
-
-    return authPatterns.some((pattern) => pattern.test(content));
-  }
-
-  /**
-   * Verifica violação de naming REST (verbos em URLs)
-   */
-  private checkRestNaming(route: string): boolean {
-    const restViolationPatterns = [
-      /\/(?:get|post|put|delete|patch|create|update|remove|fetch|list|all)(?:\/|$)/i,
-    ];
-
-    return restViolationPatterns.some((pattern) => pattern.test(route));
-  }
-
-  /**
-   * Verifica se é um endpoint de listagem
-   */
-  private isListEndpoint(route: string, content: string): boolean {
-    const listPatterns = [
-      /GET|\.get/i,
-      /\/[^/]*(?:list|all|items|users|products)(?:\/|$)/i,
-      /\[\]/,
-    ];
-
-    return listPatterns.some((pattern) => pattern.test(route || content));
-  }
-
-  /**
-   * Verifica se há paginação
-   */
-  private hasPagination(content: string): boolean {
-    const paginationPatterns = [
-      /(?:limit|offset|page|take|skip)/i,
-      /req\.query\.(?:limit|offset|page|take|skip)/,
-      /skip\(\d+\)\.limit\(\d+\)/,
-      /limit\(\d+\)\.offset\(\d+\)/,
-    ];
-
-    return paginationPatterns.some((pattern) => pattern.test(content));
-  }
-
-  /**
-   * Encontra padrões N+1 query
-   */
-  private findN1QueryPatterns(content: string): string[] {
-    const patterns: string[] = [];
-
-    // Procura por forEach/map com .find/.query/.get dentro
-    const loopPattern =
-      /(?:forEach|map|for\s*\()\s*\([^)]*\)\s*(?:=>|{)[^}]*\.(?:find|query|get|findOne|findById|load)\s*\(/g;
-
-    let match;
-    while ((match = loopPattern.exec(content)) !== null) {
-      patterns.push(match[0].substring(0, 50));
-    }
-
-    return patterns;
-  }
-
-  /**
-   * Verifica se há rate limiting
-   */
-  private hasRateLimiting(content: string): boolean {
-    const rateLimitPatterns = [
-      /rateLimit/i,
-      /throttle/i,
-      /limiter/i,
-      /@Throttle/,
-      /express-rate-limit/i,
-    ];
-
-    return rateLimitPatterns.some((pattern) => pattern.test(content));
-  }
 
   /**
    * Verifica se é arquivo de teste

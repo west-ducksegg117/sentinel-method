@@ -1,4 +1,10 @@
 import { BaseValidator } from './base';
+import {
+  detectThrowStringLiteralsHelper,
+  detectEmptyCatchBlocksHelper,
+  detectErrorSwallowingHelper,
+  extractFunctionBody,
+} from './error-handling-helpers';
 
 /**
  * Métricas de análise de tratamento de erros
@@ -91,13 +97,19 @@ export class ErrorHandlingValidator extends BaseValidator {
     const lines = content.split('\n');
 
     // Verifica throw com string literal
-    issues.push(...this.detectThrowStringLiterals(content, filePath, lines));
+    const throwResult = detectThrowStringLiteralsHelper(content, this.createIssue.bind(this), filePath, lines);
+    issues.push(...throwResult.issues);
+    this.metrics.throwStringLiterals += throwResult.count;
 
     // Verifica catch blocks vazios
-    issues.push(...this.detectEmptyCatchBlocks(content, filePath, lines));
+    const emptyResult = detectEmptyCatchBlocksHelper(content, this.createIssue.bind(this), filePath, lines);
+    issues.push(...emptyResult.issues);
+    this.metrics.emptyCatchBlocks += emptyResult.count;
 
     // Verifica error swallowing
-    issues.push(...this.detectErrorSwallowing(content, filePath, lines));
+    const swallowResult = detectErrorSwallowingHelper(content, this.createIssue.bind(this), filePath, lines);
+    issues.push(...swallowResult.issues);
+    this.metrics.errorSwallowing += swallowResult.count;
 
     // Verifica generic catch
     issues.push(...this.detectGenericCatches(content, filePath, lines));
@@ -117,130 +129,6 @@ export class ErrorHandlingValidator extends BaseValidator {
     return issues;
   }
 
-  /**
-   * Detecta throw com string literal em vez de Error objects
-   */
-  private detectThrowStringLiterals(content: string, filePath: string, lines: string[]) {
-    const issues = [];
-    const throwStringRegex = /throw\s+['"`][^'"`]*['"`]/g;
-    let match;
-
-    while ((match = throwStringRegex.exec(content)) !== null) {
-      const lineNumber = content.substring(0, match.index).split('\n').length;
-      this.metrics.throwStringLiterals++;
-
-      issues.push(
-        this.createIssue(
-          'error',
-          'THROW_STRING_LITERAL',
-          'Throwing string literals instead of Error objects. Use throw new Error(message) instead.',
-          {
-            line: lineNumber,
-            file: filePath,
-            code: lines[lineNumber - 1].trim(),
-            suggestion: `Replace "${match[0]}" with "throw new Error(...)"`,
-          },
-        ),
-      );
-    }
-
-    return issues;
-  }
-
-  /**
-   * Detecta catch blocks vazios
-   */
-  private detectEmptyCatchBlocks(content: string, filePath: string, lines: string[]) {
-    const issues = [];
-    const emptyCatchRegex = /catch\s*\(\s*\w*\s*\)\s*\{[\s\n]*\}/g;
-    const emptyCatchNoParamRegex = /catch\s*\{[\s\n]*\}/g;
-
-    let match = emptyCatchRegex.exec(content);
-    while (match) {
-      const lineNumber = content.substring(0, match.index).split('\n').length;
-      this.metrics.emptyCatchBlocks++;
-
-      issues.push(
-        this.createIssue(
-          'error',
-          'EMPTY_CATCH_BLOCK',
-          'Empty catch block detected. Add proper error handling logic.',
-          {
-            line: lineNumber,
-            file: filePath,
-            code: lines[lineNumber - 1].trim(),
-            suggestion: 'Add logging, error handling, or rethrow the error in catch block',
-          },
-        ),
-      );
-
-      match = emptyCatchRegex.exec(content);
-    }
-
-    match = emptyCatchNoParamRegex.exec(content);
-    while (match) {
-      const lineNumber = content.substring(0, match.index).split('\n').length;
-      this.metrics.emptyCatchBlocks++;
-
-      issues.push(
-        this.createIssue(
-          'error',
-          'EMPTY_CATCH_BLOCK',
-          'Empty catch block detected. Add proper error handling logic.',
-          {
-            line: lineNumber,
-            file: filePath,
-            code: lines[lineNumber - 1].trim(),
-            suggestion: 'Add logging, error handling, or rethrow the error in catch block',
-          },
-        ),
-      );
-
-      match = emptyCatchNoParamRegex.exec(content);
-    }
-
-    return issues;
-  }
-
-  /**
-   * Detecta error swallowing - catch blocks que não fazem nada útil com o erro
-   */
-  private detectErrorSwallowing(content: string, filePath: string, lines: string[]) {
-    const issues = [];
-    const catchBlockRegex = /catch\s*\(\s*(\w+)\s*\)\s*\{([^}]*)\}/gs;
-
-    let match;
-    while ((match = catchBlockRegex.exec(content)) !== null) {
-      const catchContent = match[2];
-      const lineNumber = content.substring(0, match.index).split('\n').length;
-
-      // Verifica se o bloco catch está vazio ou contém apenas comentários/whitespace
-      const trimmedContent = catchContent.trim();
-
-      if (
-        !trimmedContent ||
-        (trimmedContent.startsWith('//') && !catchContent.includes('throw') && !catchContent.includes('log'))
-      ) {
-        this.metrics.errorSwallowing++;
-
-        issues.push(
-          this.createIssue(
-            'warning',
-            'ERROR_SWALLOWING',
-            'Catch block does not properly handle the error. Consider logging, rethrowing, or proper error handling.',
-            {
-              line: lineNumber,
-              file: filePath,
-              code: lines[lineNumber - 1].trim(),
-              suggestion: 'Implement proper error handling: log, rethrow, or handle meaningfully',
-            },
-          ),
-        );
-      }
-    }
-
-    return issues;
-  }
 
   /**
    * Detecta generic catch de Error sem tratamento específico
@@ -418,7 +306,7 @@ export class ErrorHandlingValidator extends BaseValidator {
       const startIdx = content.indexOf('{', match.index);
       if (startIdx === -1) continue;
 
-      const functionBody = this.extractFunctionBody(content, startIdx);
+      const functionBody = extractFunctionBody(content, startIdx);
 
       // Verifica se há await sem try/catch envolvente
       if (
@@ -447,39 +335,6 @@ export class ErrorHandlingValidator extends BaseValidator {
     return issues;
   }
 
-  /**
-   * Extrai o corpo de uma função a partir do índice de abertura de chave
-   */
-  private extractFunctionBody(content: string, startIdx: number): string {
-    let braceCount = 0;
-    let inString = false;
-    let stringChar = '';
-
-    for (let i = startIdx; i < content.length && i < startIdx + 500; i++) {
-      const char = content[i];
-
-      if ((char === '"' || char === "'" || char === '`') && content[i - 1] !== '\\') {
-        if (!inString) {
-          inString = true;
-          stringChar = char;
-        } else if (char === stringChar) {
-          inString = false;
-        }
-      }
-
-      if (!inString) {
-        if (char === '{') braceCount++;
-        if (char === '}') {
-          braceCount--;
-          if (braceCount === 0) {
-            return content.substring(startIdx, i);
-          }
-        }
-      }
-    }
-
-    return content.substring(startIdx, startIdx + 500);
-  }
 
   /**
    * Calcula o score da validação

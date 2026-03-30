@@ -2,6 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ValidatorResult, ValidationIssue, SentinelConfig } from '../types';
 import { BaseValidator } from './base';
+import {
+  detectUnusedImports as detectUnusedImportsHelper,
+  detectCommentedCodeBlocks as detectCommentedCodeBlocksHelper,
+  detectUnreachableCode as detectUnreachableCodeHelper,
+} from './dead-code-helpers';
 
 /**
  * Métricas de detecção de código morto
@@ -116,16 +121,19 @@ export class DeadCodeValidator extends BaseValidator {
           const relativeFile = path.relative(sourceDir, file);
 
           // 1. Detectar imports não utilizados
-          const localUnusedImports = this.detectUnusedImports(content, relativeFile, issues);
-          unusedImports += localUnusedImports;
+          const unusedResult = detectUnusedImportsHelper(content, relativeFile);
+          unusedImports += unusedResult.count;
+          issues.push(...unusedResult.issues);
 
           // 2. Detectar blocos de código comentado (3+ linhas)
-          const localCommentedCode = this.detectCommentedCodeBlocks(lines, relativeFile, issues);
-          commentedCode += localCommentedCode;
+          const commentedResult = detectCommentedCodeBlocksHelper(lines, relativeFile);
+          commentedCode += commentedResult.count;
+          issues.push(...commentedResult.issues);
 
           // 3. Detectar código inacessível
-          const localUnreachable = this.detectUnreachableCode(lines, relativeFile, issues);
-          unreachableCode += localUnreachable;
+          const unreachableResult = detectUnreachableCodeHelper(lines, relativeFile);
+          unreachableCode += unreachableResult.count;
+          issues.push(...unreachableResult.issues);
 
           // 4. Detectar funções vazias
           const localEmptyFunctions = this.detectEmptyFunctions(content, lines, relativeFile, issues);
@@ -182,149 +190,6 @@ export class DeadCodeValidator extends BaseValidator {
     );
   }
 
-  /**
-   * Detecta imports não utilizados no arquivo
-   * Retorna contagem de issues criadas
-   */
-  private detectUnusedImports(content: string, file: string, issues: ValidationIssue[]): number {
-    let count = 0;
-
-    // Extrair imports nomeados
-    const importRegex = /import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/g;
-    let match;
-
-    while ((match = importRegex.exec(content)) !== null) {
-      const importedNames = match[1].split(',').map(s => {
-        const parts = s.trim().split(/\s+as\s+/);
-        return parts[1] || parts[0];
-      });
-
-      for (const name of importedNames) {
-        // Verificar se o nome está presente no resto do arquivo (excluindo a própria declaração)
-        const contentWithoutImport = content.replace(match[0], '');
-        // Usar word boundaries para evitar false positives (ex: 'test' matching 'testing')
-        if (!new RegExp(`\\b${name}\\b`).test(contentWithoutImport)) {
-          count++;
-          issues.push(this.createIssue('warning', 'UNUSED_IMPORT',
-            `Imported symbol '${name}' is never used in this file`,
-            { file, suggestion: `Remove unused import '${name}'` },
-          ));
-        }
-      }
-    }
-
-    // Extrair imports padrão (default imports)
-    const defaultImportRegex = /import\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g;
-    while ((match = defaultImportRegex.exec(content)) !== null) {
-      const name = match[1];
-      const contentWithoutImport = content.replace(match[0], '');
-
-      if (!new RegExp(`\\b${name}\\b`).test(contentWithoutImport)) {
-        count++;
-        issues.push(this.createIssue('warning', 'UNUSED_IMPORT',
-          `Default import '${name}' is never used in this file`,
-          { file, suggestion: `Remove unused import '${name}'` },
-        ));
-      }
-    }
-
-    return count;
-  }
-
-  /**
-   * Detecta blocos de código comentado (3+ linhas consecutivas)
-   */
-  private detectCommentedCodeBlocks(lines: string[], file: string, issues: ValidationIssue[]): number {
-    let count = 0;
-    let commentBlockStart = -1;
-    let commentBlockLength = 0;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-
-      // Verificar se é uma linha comentada (// ou /* */)
-      const isCommented = /^\/\/|^\/\*|^\*/.test(line) || /^\s*\/\//.test(lines[i]);
-
-      if (isCommented && !line.includes('eslint') && !line.includes('prettier') &&
-          !line.includes('ts-ignore') && !line.includes('noqa')) {
-        if (commentBlockStart === -1) {
-          commentBlockStart = i;
-          commentBlockLength = 1;
-        } else if (i === commentBlockStart + commentBlockLength) {
-          commentBlockLength++;
-        } else {
-          // Bloco foi interrompido
-          if (commentBlockLength >= 3) {
-            count++;
-            issues.push(this.createIssue('info', 'COMMENTED_CODE',
-              `Block of ${commentBlockLength} commented lines detected (lines ${commentBlockStart + 1}-${i})`,
-              { file, line: commentBlockStart + 1, suggestion: 'Remove commented code or uncomment if still needed' },
-            ));
-          }
-          commentBlockStart = i;
-          commentBlockLength = 1;
-        }
-      } else {
-        if (commentBlockStart !== -1 && commentBlockLength >= 3) {
-          count++;
-          issues.push(this.createIssue('info', 'COMMENTED_CODE',
-            `Block of ${commentBlockLength} commented lines detected (lines ${commentBlockStart + 1}-${i})`,
-            { file, line: commentBlockStart + 1, suggestion: 'Remove commented code or uncomment if still needed' },
-          ));
-        }
-        commentBlockStart = -1;
-        commentBlockLength = 0;
-      }
-    }
-
-    // Verificar último bloco
-    if (commentBlockStart !== -1 && commentBlockLength >= 3) {
-      count++;
-      issues.push(this.createIssue('info', 'COMMENTED_CODE',
-        `Block of ${commentBlockLength} commented lines detected at end of file`,
-        { file, line: commentBlockStart + 1, suggestion: 'Remove commented code or uncomment if still needed' },
-      ));
-    }
-
-    return count;
-  }
-
-  /**
-   * Detecta código inacessível após return/throw/break/continue
-   */
-  private detectUnreachableCode(lines: string[], file: string, issues: ValidationIssue[]): number {
-    let count = 0;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // Procurar por return, throw, break, continue (não em comentários)
-      if (/\b(return|throw|break|continue)\b/.test(line) && !line.trim().startsWith('//')) {
-        // Verificar próximas linhas que não são comentários nem chaves de fechamento
-        for (let j = i + 1; j < lines.length; j++) {
-          const nextLine = lines[j].trim();
-
-          // Ignorar linhas vazias, comentários, chaves de fechamento
-          if (nextLine === '' || nextLine.startsWith('//') || nextLine === '}' ||
-              nextLine === '} else' || nextLine === '} catch' || nextLine === '} finally') {
-            continue;
-          }
-
-          // Se encontrou código real após return/throw
-          if (!/^\s*(\/\/|\/\*|\*|else|catch|finally)/.test(lines[j])) {
-            count++;
-            issues.push(this.createIssue('warning', 'UNREACHABLE_CODE',
-              `Code after '${line.match(/\b(return|throw|break|continue)\b/)?.[1]}' statement is unreachable (line ${j + 1})`,
-              { file, line: i + 1, suggestion: 'Remove unreachable code or restructure the logic' },
-            ));
-            break; // Um issue por bloco é suficiente
-          }
-        }
-      }
-    }
-
-    return count;
-  }
 
   /**
    * Detecta funções vazias (corpo vazio ou apenas comentários)

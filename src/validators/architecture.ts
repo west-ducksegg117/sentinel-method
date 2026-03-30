@@ -2,6 +2,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ValidatorResult, ValidationIssue, SentinelConfig } from '../types';
 import { BaseValidator } from './base';
+import {
+  DependencyNode,
+  dfsDetectCycles,
+  extractImportPaths,
+  determineLayer,
+  isLayerViolation,
+  countMethods,
+} from './architecture-helpers';
 
 /**
  * Métricas de arquitetura coletadas durante a análise.
@@ -15,17 +23,6 @@ export interface ArchitectureMetrics {
   deepNesting: number;
   missingBarrels: number;
   architectureScore: number;
-}
-
-/**
- * Nó de dependência para construção do grafo.
- * Armazena o caminho do arquivo e suas dependências locais.
- */
-interface DependencyNode {
-  path: string;
-  dependencies: Set<string>;
-  visited: boolean;
-  visiting: boolean;
 }
 
 /**
@@ -151,7 +148,7 @@ export class ArchitectureValidator extends BaseValidator {
       const cycles = new Set<string>();
       for (const [nodePath, node] of graph.entries()) {
         if (!node.visited) {
-          this.dfsDetectCycles(nodePath, graph, cycles, []);
+          dfsDetectCycles(nodePath, graph, cycles, []);
         }
       }
 
@@ -169,40 +166,6 @@ export class ArchitectureValidator extends BaseValidator {
     return issues;
   }
 
-  /**
-   * DFS recursiva para detecção de ciclos em grafo.
-   * Rastreia nós visitados e em processamento.
-   */
-  private dfsDetectCycles(
-    nodePath: string,
-    graph: Map<string, DependencyNode>,
-    cycles: Set<string>,
-    path: string[],
-  ): void {
-    const node = graph.get(nodePath);
-    if (!node) return;
-
-    node.visiting = true;
-    path.push(nodePath);
-
-    for (const dep of node.dependencies) {
-      if (!graph.has(dep)) continue;
-
-      const depNode = graph.get(dep)!;
-      const depIndex = path.indexOf(dep);
-
-      if (depIndex !== -1) {
-        // Ciclo encontrado
-        const cycle = path.slice(depIndex).concat(nodePath);
-        cycles.add(cycle.join(' → '));
-      } else if (!depNode.visited && !depNode.visiting) {
-        this.dfsDetectCycles(dep, graph, cycles, [...path]);
-      }
-    }
-
-    node.visiting = false;
-    node.visited = true;
-  }
 
   /**
    * Detecta violações de camadas (import de camadas inferiores).
@@ -213,21 +176,21 @@ export class ArchitectureValidator extends BaseValidator {
 
     for (const file of sourceFiles) {
       const relativePath = path.relative(sourceDir, file);
-      const fileLayer = this.determineLayer(relativePath);
+      const fileLayer = determineLayer(relativePath, this.layerHierarchy);
 
       if (!fileLayer) continue;
 
       try {
         const content = fs.readFileSync(file, 'utf-8');
-        const imports = this.extractImportPaths(content);
+        const imports = extractImportPaths(content);
 
         for (const importPath of imports) {
           if (importPath.startsWith('.')) {
             const importedPath = path.normalize(path.join(path.dirname(relativePath), importPath));
-            const importedLayer = this.determineLayer(importedPath);
+            const importedLayer = determineLayer(importedPath, this.layerHierarchy);
 
             // Verificar violação: camada superior importando de inferior
-            if (importedLayer && this.isLayerViolation(fileLayer, importedLayer)) {
+            if (importedLayer && isLayerViolation(fileLayer, importedLayer)) {
               issues.push(this.createIssue('warning', 'LAYER_VIOLATION',
                 `Layer violation: '${fileLayer}' layer imports from '${importedLayer}' layer (${importedPath}). Refactor to respect layer boundaries.`,
                 { file: relativePath },
@@ -278,7 +241,7 @@ export class ArchitectureValidator extends BaseValidator {
         }
 
         // Verificar métodos/funções
-        const methodCount = this.countMethods(content, file);
+        const methodCount = countMethods(content, file);
         if (methodCount > 20) {
           issues.push(this.createIssue('warning', 'GOD_CLASS_METHODS',
             `File '${relativePath}' has too many methods/functions (${methodCount} > 20). Extract methods into separate classes or modules.`,
@@ -369,15 +332,13 @@ export class ArchitectureValidator extends BaseValidator {
 
     try {
       const content = fs.readFileSync(file, 'utf-8');
-      const imports = this.extractImportPaths(content);
+      const imports = extractImportPaths(content);
 
       const fileDir = path.dirname(path.relative(sourceDir, file));
 
       for (const imp of imports) {
         if (imp.startsWith('.')) {
-          // Normalizar caminho relativo
           const resolved = path.normalize(path.join(fileDir, imp));
-          // Adicionar sem extensão (resolve pode encontrar .ts, .js, etc)
           dependencies.add(resolved.replace(/\.(ts|js|tsx|jsx)$/, ''));
         }
       }
@@ -386,95 +347,6 @@ export class ArchitectureValidator extends BaseValidator {
     }
 
     return dependencies;
-  }
-
-  /**
-   * Extrai caminhos de import/require de um arquivo.
-   * Suporta: import ... from '...', require('...')
-   */
-  private extractImportPaths(content: string): string[] {
-    const paths: string[] = [];
-
-    // import ... from '...'
-    const importMatches = content.matchAll(/(?:import|from)\s+['"`]([^'"`]+)['"`]/g);
-    for (const match of importMatches) {
-      paths.push(match[1]);
-    }
-
-    // require('...')
-    const requireMatches = content.matchAll(/require\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g);
-    for (const match of requireMatches) {
-      paths.push(match[1]);
-    }
-
-    return paths;
-  }
-
-  /**
-   * Determina a camada de um arquivo baseado no caminho.
-   * Retorna: 'top', 'high', 'mid', 'low', ou null
-   */
-  private determineLayer(filePath: string): string | null {
-    const normalizedPath = filePath.toLowerCase();
-
-    for (const [layer, patterns] of Object.entries(this.layerHierarchy)) {
-      for (const pattern of patterns) {
-        if (normalizedPath.includes(`/${pattern}/`) || normalizedPath.includes(`\\${pattern}\\`)) {
-          return layer;
-        }
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Verifica se há violação de camadas.
-   * fileLayer importando de importedLayer é violação se:
-   * - fileLayer está acima de importedLayer na hierarquia
-   */
-  private isLayerViolation(fileLayer: string, importedLayer: string): boolean {
-    const layerOrder = ['top', 'high', 'mid', 'low'];
-    const fileIndex = layerOrder.indexOf(fileLayer);
-    const importedIndex = layerOrder.indexOf(importedLayer);
-
-    // Violação: camada superior (índice menor) importando de inferior (índice maior)
-    return fileIndex < importedIndex;
-  }
-
-  /**
-   * Conta métodos/funções em um arquivo.
-   * Suporta TypeScript, JavaScript, Python, Go, Java, Ruby, PHP, Dart
-   */
-  private countMethods(content: string, file: string): number {
-    let count = 0;
-
-    if (file.endsWith('.ts') || file.endsWith('.tsx') || file.endsWith('.js') || file.endsWith('.jsx')) {
-      // TypeScript/JavaScript: function, method, arrow function
-      count += (content.match(/^\s*(public\s+|private\s+|protected\s+)?async\s+(\w+)\s*\(/gm) || []).length;
-      count += (content.match(/^\s*(public\s+|private\s+|protected\s+)?(\w+)\s*\([^)]*\)\s*[:=]/gm) || []).length;
-      count += (content.match(/^\s*(?:function|async\s+function)\s+\w+/gm) || []).length;
-    } else if (file.endsWith('.py')) {
-      // Python: def
-      count += (content.match(/^\s*(?:async\s+)?def\s+\w+/gm) || []).length;
-    } else if (file.endsWith('.go')) {
-      // Go: func
-      count += (content.match(/^func\s+\(|^func\s+\w+/gm) || []).length;
-    } else if (file.endsWith('.java')) {
-      // Java: method declarations
-      count += (content.match(/(?:public|private|protected)\s+(?:static\s+)?(?:final\s+)?\w+\s+\w+\s*\(/gm) || []).length;
-    } else if (file.endsWith('.rb')) {
-      // Ruby: def
-      count += (content.match(/^\s*def\s+\w+/gm) || []).length;
-    } else if (file.endsWith('.php')) {
-      // PHP: function, method
-      count += (content.match(/(?:public|private|protected)?\s*function\s+\w+/gm) || []).length;
-    } else if (file.endsWith('.dart')) {
-      // Dart: method declarations
-      count += (content.match(/(?:void|\w+)\s+\w+\s*\([^)]*\)\s*\{/gm) || []).length;
-    }
-
-    return count;
   }
 
   /**
