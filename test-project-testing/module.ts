@@ -1,0 +1,1 @@
+export const calc = (x: number) => x * 2;

@@ -1,0 +1,1 @@
+export const beta = "second completely different module content";

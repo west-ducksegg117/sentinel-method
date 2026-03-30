@@ -1,0 +1,1 @@
+export function comp3() { return 3; }

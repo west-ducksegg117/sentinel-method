@@ -1,0 +1,1 @@
+element.insertAdjacentHTML("beforeend", data);

@@ -1,0 +1,1 @@
+export const alpha = "first unique module content here";

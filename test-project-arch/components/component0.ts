@@ -1,0 +1,1 @@
+export function comp0() { return 0; }

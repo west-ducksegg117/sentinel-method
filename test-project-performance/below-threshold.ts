@@ -1,0 +1,10 @@
+const x0 = { a: new Array(1), b: new Map(), c: new Set() };
+const x1 = { a: new Array(1), b: new Map(), c: new Set() };
+const x2 = { a: new Array(1), b: new Map(), c: new Set() };
+const x3 = { a: new Array(1), b: new Map(), c: new Set() };
+const x4 = { a: new Array(1), b: new Map(), c: new Set() };
+const x5 = { a: new Array(1), b: new Map(), c: new Set() };
+const x6 = { a: new Array(1), b: new Map(), c: new Set() };
+const x7 = { a: new Array(1), b: new Map(), c: new Set() };
+const x8 = { a: new Array(1), b: new Map(), c: new Set() };
+const x9 = { a: new Array(1), b: new Map(), c: new Set() };
