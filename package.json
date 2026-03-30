@@ -1,7 +1,7 @@
 {
   "name": "sentinel-method",
-  "version": "2.0.0",
-  "description": "A framework for production-grade quality assurance of AI-generated code",
+  "version": "3.0.0",
+  "description": "Production-grade quality assurance with sub-agent verification — dual independent analysis with consensus engine",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -22,11 +22,14 @@
   "keywords": [
     "ai-code-validation",
     "quality-assurance",
+    "sub-agent-verification",
+    "consensus-engine",
     "testing",
     "security",
     "performance",
     "maintainability",
-    "ci-cd"
+    "ci-cd",
+    "mcp"
   ],
   "author": "Camilo Girardelli",
   "license": "MIT",

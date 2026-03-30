@@ -1,124 +1,193 @@
-# 🛡️ Sentinel Method v2.0
+<p align="center">
+  <img src="https://img.shields.io/badge/%F0%9F%9B%A1%EF%B8%8F-SENTINEL_METHOD-000000?style=for-the-badge&labelColor=0a0a0a" alt="Sentinel Method" />
+</p>
 
-A production-grade quality gate framework for AI-generated code validation.
+<h1 align="center">
+  <code>sentinel-method</code>
+</h1>
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.1+-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-311_passing-brightgreen.svg)](#testing)
-[![Coverage](https://img.shields.io/badge/Coverage-96%25-brightgreen.svg)](#testing)
+<p align="center">
+  <strong>The AI Code Quality Gate That Thinks Before It Ships</strong>
+</p>
 
-## Overview
+<p align="center">
+  <em>14 validators. Sub-agent verification. Consensus engine.<br/>One command between chaos and production.</em>
+</p>
 
-Sentinel Method is a CI/CD-integrated framework that validates AI-generated code against production standards before it reaches your codebase. It enforces testing coverage, security scanning (OWASP/CWE mapped), performance benchmarks, maintainability checks (with Halstead metrics), dependency health, documentation coverage, and code style consistency.
+<p align="center">
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Get_Started-%E2%86%92-00d4aa?style=for-the-badge" alt="Get Started" /></a>
+  <a href="#architecture"><img src="https://img.shields.io/badge/Architecture-%E2%86%92-7c3aed?style=for-the-badge" alt="Architecture" /></a>
+  <a href="#the-14-validators"><img src="https://img.shields.io/badge/Validators-%E2%86%92-f59e0b?style=for-the-badge" alt="Validators" /></a>
+</p>
 
-Developed by **Camilo Girardelli** — IEEE Senior Member, Senior Software Architect, CTO at Girardelli Tecnologia.
+<br/>
 
-## The 7 Validators
+<p align="center">
+  <img src="https://img.shields.io/badge/v3.0.0-black?style=flat-square&logo=semver&logoColor=white" alt="v3.0.0" />
+  <img src="https://img.shields.io/badge/TypeScript_5.1+-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Node.js_18+-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/Tests_765-passing-00d4aa?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/Coverage_95%25-statements-00d4aa?style=flat-square" alt="Coverage" />
+  <img src="https://img.shields.io/badge/Validators-14-7c3aed?style=flat-square" alt="Validators" />
+  <img src="https://img.shields.io/badge/License-MIT-f59e0b?style=flat-square" alt="MIT" />
+</p>
 
-| Validator | What it checks | Key metrics |
-|---|---|---|
-| **Testing Coverage** | Test files, assertions, edge cases | Quality score 0-100 |
-| **Security Scanning** | Injection, XSS, secrets, weak crypto | OWASP A01-A07, 12 CWEs |
-| **Performance Benchmarks** | Complexity, memory, async patterns | Cyclomatic complexity |
-| **Maintainability Checker** | Function length, docs, duplication | Halstead V/D/E, MI index |
-| **Dependency Analysis** | Unused deps, wildcards, lock file | Package health score |
-| **Documentation Coverage** | JSDoc, README, CHANGELOG | Coverage % |
-| **Code Style** | Indentation, trailing WS, console.log | Consistency score |
+---
+
+## The Problem
+
+AI generates code fast. But **fast != safe**. Every unchecked commit is a potential security breach, a performance regression, an accessibility violation, or a maintenance nightmare waiting to happen.
+
+## The Solution
+
+Sentinel Method is a **production-grade quality gate** that intercepts AI-generated code and subjects it to 14 independent validators, dual sub-agent verification, and a consensus engine — all before a single line reaches your codebase.
+
+```
+npx sentinel validate ./src
+```
+
+That's it. One command. Zero tolerance for bad code.
+
+---
+
+## Quick Start
+
+```bash
+# Install
+npm install sentinel-method
+
+# Validate your project
+npx sentinel validate ./src
+
+# Initialize config files
+npx sentinel init
+
+# Install git hooks (pre-commit + pre-push)
+npx sentinel hooks --install
+```
+
+---
+
+## The 14 Validators
+
+<table>
+<thead>
+<tr>
+<th align="center">#</th>
+<th>Validator</th>
+<th>What It Catches</th>
+<th>Standards</th>
+</tr>
+</thead>
+<tbody>
+<tr><td align="center"><code>01</code></td><td><strong>Testing Coverage</strong></td><td>Missing tests, weak assertions, no edge cases</td><td>Score 0-100</td></tr>
+<tr><td align="center"><code>02</code></td><td><strong>Security Scanning</strong></td><td>Injection, XSS, hardcoded secrets, weak crypto</td><td>OWASP A01-A07, 12 CWEs</td></tr>
+<tr><td align="center"><code>03</code></td><td><strong>Performance</strong></td><td>High complexity, memory leaks, sync bottlenecks</td><td>Cyclomatic &amp; cognitive</td></tr>
+<tr><td align="center"><code>04</code></td><td><strong>Maintainability</strong></td><td>God functions, duplication, poor documentation</td><td>Halstead V/D/E, MI index</td></tr>
+<tr><td align="center"><code>05</code></td><td><strong>Dependencies</strong></td><td>Unused packages, wildcard versions, missing lock</td><td>Package health</td></tr>
+<tr><td align="center"><code>06</code></td><td><strong>Documentation</strong></td><td>Missing JSDoc, README gaps, no CHANGELOG</td><td>Coverage %</td></tr>
+<tr><td align="center"><code>07</code></td><td><strong>Code Style</strong></td><td>Inconsistent formatting, console.log, trailing WS</td><td>Consistency score</td></tr>
+<tr><td align="center"><code>08</code></td><td><strong>Architecture</strong></td><td>Circular deps, god classes, layer violations</td><td>Score 0-100</td></tr>
+<tr><td align="center"><code>09</code></td><td><strong>API Contracts</strong></td><td>REST violations, missing auth, no rate limiting</td><td>REST &amp; OpenAPI</td></tr>
+<tr><td align="center"><code>10</code></td><td><strong>Accessibility</strong></td><td>Missing alt, ARIA, semantic HTML, heading order</td><td>WCAG 2.1 AA</td></tr>
+<tr><td align="center"><code>11</code></td><td><strong>Internationalization</strong></td><td>Hardcoded strings, locale-naive date/currency</td><td>i18n readiness</td></tr>
+<tr><td align="center"><code>12</code></td><td><strong>Error Handling</strong></td><td>Empty catches, swallowed errors, unhandled promises</td><td>Resilience score</td></tr>
+<tr><td align="center"><code>13</code></td><td><strong>Type Safety</strong></td><td><code>any</code> abuse, ts-ignore, non-null assertions</td><td>Type strictness</td></tr>
+<tr><td align="center"><code>14</code></td><td><strong>Dead Code</strong></td><td>Unused imports, unreachable branches, phantom exports</td><td>Dead code score</td></tr>
+</tbody>
+</table>
+
+---
 
 ## Architecture
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│                    Sentinel Method v2.0                     │
-├───────────────────────────────────────────────────────────┤
-│                                                            │
-│  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────┐   │
-│  │ Testing │ │Security │ │Performanc│ │Maintainabilit│   │
-│  │ Quality │ │Scanning │ │Benchmarks│ │   Checker    │   │
-│  └────┬────┘ └────┬────┘ └────┬─────┘ └──────┬───────┘   │
-│       │           │           │               │            │
-│  ┌────┴────┐ ┌────┴────┐ ┌───┴────┐                      │
-│  │Dependenc│ │Document.│ │  Code  │                      │
-│  │Analysis │ │Coverage │ │ Style  │                      │
-│  └────┬────┘ └────┬────┘ └───┬────┘                      │
-│       │           │          │                            │
-│       └───────────┴──────┬───┘                            │
-│                          │                                │
-│              ┌───────────▼───────────┐                    │
-│              │   BaseValidator       │  ← Template Method │
-│              │   + FileCollector     │  ← Cached I/O      │
-│              │   + SentinelIgnore    │  ← .sentinelignore  │
-│              └───────────┬───────────┘                    │
-│                          │                                │
-│              ┌───────────▼───────────┐                    │
-│              │   Sentinel Engine     │  ← Promise.all()   │
-│              │   + PluginLoader      │  ← Extensible      │
-│              │   + Error Recovery    │  ← Resilient       │
-│              └───────────┬───────────┘                    │
-│                          │                                │
-│              ┌───────────▼───────────┐                    │
-│              │  Reporter + CLI       │                    │
-│              │  (JSON/MD/HTML/CLI)   │                    │
-│              └───────────────────────┘                    │
-└───────────────────────────────────────────────────────────┘
+                         ╔══════════════════════════════════════╗
+                         ║        SENTINEL METHOD v3.0          ║
+                         ║    "Trust, but verify. Twice."       ║
+                         ╚══════════════╦═══════════════════════╝
+                                        ║
+                    ┌───────────────────╨───────────────────┐
+                    │          14 VALIDATOR MATRIX           │
+                    │                                       │
+                    │  Testing ─── Security ─── Performance │
+                    │  Maintain ── Dependency ── Docs       │
+                    │  Style ──── Architect ─── API         │
+                    │  A11y ───── i18n ──────── Errors      │
+                    │  Types ──── Dead Code                 │
+                    └───────────────────┬───────────────────┘
+                                        │
+              ┌─────────────────────────┼─────────────────────────┐
+              │                         │                         │
+   ╔══════════╧═══════════╗  ╔═════════╧══════════╗  ╔══════════╧═══════════╗
+   ║   SUB-AGENT VERIFY   ║  ║  INTELLIGENCE LAYER ║  ║   SENTINEL ENGINE    ║
+   ║                       ║  ║                     ║  ║                      ║
+   ║  SecurityVerifier     ║  ║  BusinessGates      ║  ║  Promise.all()       ║
+   ║  ConsensusEngine      ║  ║  RiskBudget         ║  ║  PluginLoader        ║
+   ║  Taint Flow Analysis  ║  ║  FitnessFunctions   ║  ║  ResultCache         ║
+   ╚══════════╤═══════════╝  ╚═════════╤══════════╝  ╚══════════╤═══════════╝
+              └─────────────────────────┼─────────────────────────┘
+                                        │
+                         ╔══════════════╧═══════════════╗
+                         ║    REPORTER + CLI OUTPUT      ║
+                         ║  Console │ JSON │ MD │ HTML   ║
+                         ╚══════════════════════════════╝
 ```
 
-## Quick Start
+### How Sub-Agent Verification Works
 
-### Installation
+Sentinel doesn't just run validators — it **verifies its own findings**. The ConsensusEngine runs dual independent analysis paths and only reports issues where both agents agree. This eliminates false positives and gives you confidence that every flagged issue is real.
+
+```
+Validator Result ──→ Agent A (SecurityVerifier) ──→ ┐
+                                                     ├──→ ConsensusEngine ──→ Final Verdict
+Validator Result ──→ Agent B (Independent Check) ──→ ┘
+```
+
+---
+
+## CLI Reference
 
 ```bash
-npm install sentinel-method
-```
-
-### CLI Usage
-
-```bash
-# Validate current directory
-npx sentinel validate
-
-# Validate with custom thresholds
-npx sentinel validate ./src -t 80 -m 75 -s strict
-
-# JSON output for CI pipelines
-npx sentinel validate ./src --json
-
-# Markdown report
-npx sentinel validate ./src -f markdown
-
-# List available validators
-npx sentinel list
-```
-
-### CLI Options
-
-```
+# Core validation
 sentinel validate [directory] [options]
 
-Options:
-  -f, --format <format>              Report format: json, markdown, console, html (default: console)
-  -t, --testing-threshold <n>        Minimum testing score 0-100 (default: 80)
-  -s, --security-level <level>       Security: strict, moderate, permissive (default: strict)
-  -p, --performance-target <target>  Performance: optimal, good, acceptable (default: optimal)
-  -m, --maintainability-score <n>    Minimum maintainability score 0-100 (default: 75)
-  --fail-on-warnings                 Treat warnings as failures
-  --json                             Output raw JSON (shorthand for -f json)
-  --min-severity <level>             Filter issues: error, warning, info
-  -w, --watch                        Watch mode — re-run on file changes
+# Project setup
+sentinel init [--force]
+
+# Git hooks
+sentinel hooks --install | --remove | --status
+
+# List validators
+sentinel list
 ```
 
-### Initialize Project
+### Options
 
-```bash
-# Generate .sentinelrc.json and .sentinelignore
-npx sentinel init
-
-# Overwrite existing files
-npx sentinel init --force
+```
+-f, --format <format>              Output: console | json | markdown | html
+-t, --testing-threshold <n>        Min testing score (default: 80)
+-s, --security-level <level>       strict | moderate | permissive
+-p, --performance-target <target>  optimal | good | acceptable
+-m, --maintainability-score <n>    Min maintainability (default: 75)
+-o, --output <file>                Save report (auto-detects format)
+-w, --watch                        Re-run on file changes
+--fail-on-warnings                 Treat warnings as failures
+--json                             Shorthand for -f json
+--min-severity <level>             Filter: error | warning | info
 ```
 
-### Programmatic Usage
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | Quality gate passed |
+| `1`  | Quality gate failed |
+| `2`  | Runtime error |
+
+---
+
+## Programmatic API
 
 ```typescript
 import { Sentinel } from 'sentinel-method';
@@ -143,10 +212,9 @@ if (result.success) {
 ### Custom Validators (Plugin System)
 
 ```typescript
-import { Sentinel, BaseValidator, PluginLoader } from 'sentinel-method';
-import type { SentinelPlugin, ValidatorResult, SentinelConfig } from 'sentinel-method';
+import { BaseValidator, PluginLoader } from 'sentinel-method';
+import type { ValidatorResult, SentinelConfig } from 'sentinel-method';
 
-// 1. Create a custom validator
 class LicenseValidator extends BaseValidator {
   readonly name = 'License Check';
 
@@ -162,23 +230,20 @@ class LicenseValidator extends BaseValidator {
   }
 }
 
-// 2. Register as plugin
+// Register directly
 const sentinel = new Sentinel();
-sentinel.registerValidator(new LicenseValidator({
-  testingThreshold: 80,
-  securityLevel: 'strict',
-  performanceTarget: 'optimal',
-  maintainabilityScore: 75,
-}));
+sentinel.registerValidator(new LicenseValidator(config));
 
-// 3. Or load plugins from a directory
+// Or load from directory
 const loader = new PluginLoader();
 loader.loadFromDirectory('./plugins');
 ```
 
-### Configuration File
+---
 
-Create a `.sentinelrc.json`:
+## Configuration
+
+### `.sentinelrc.json`
 
 ```json
 {
@@ -192,71 +257,23 @@ Create a `.sentinelrc.json`:
 }
 ```
 
-### .sentinelignore
+### `.sentinelignore`
 
-Create a `.sentinelignore` file (`.gitignore` syntax) to exclude files from analysis:
+Uses `.gitignore` syntax. Default exclusions are always active: `node_modules/`, `.git/`, `dist/`, `coverage/`, `.*`.
 
 ```gitignore
-# Generated code
+# Generated
 generated/
 *.auto.ts
 
-# Vendor libraries
+# Vendor
 vendor/
 
-# Specific files
+# Legacy
 legacy-module.js
 ```
 
-Default exclusions (always active): `node_modules/`, `.git/`, `dist/`, `coverage/`, `.nyc_output/`, `.*` (hidden files/dirs).
-
-The `excludePatterns` in `.sentinelrc.json` also feeds into the ignore system.
-
-### Git Hooks
-
-```bash
-# Install pre-commit and pre-push hooks
-npx sentinel hooks --install
-
-# Custom thresholds for hooks
-npx sentinel hooks --install -t 90 -s strict
-
-# Check hook status
-npx sentinel hooks --status
-
-# Remove hooks
-npx sentinel hooks --remove
-```
-
-### Save Report to File
-
-```bash
-# Auto-detects format from extension
-npx sentinel validate ./src -o report.json
-npx sentinel validate ./src -o report.html
-npx sentinel validate ./src -o report.md
-```
-
-### Result Cache
-
-Sentinel caches validation results in `.sentinel-cache/`. When files haven't changed, subsequent runs can skip unchanged validators. Add `.sentinel-cache/` to your `.gitignore`.
-
-### Incremental Validation (DiffAnalyzer)
-
-```typescript
-import { DiffAnalyzer } from 'sentinel-method';
-
-const diff = new DiffAnalyzer('.');
-
-// Files changed in current PR
-const prFiles = diff.getDiffAgainst('main');
-
-// Only staged files (pre-commit)
-const staged = diff.getStagedFiles();
-
-// Filter to code files only
-const codeFiles = diff.filterCodeFiles(staged);
-```
+---
 
 ## CI/CD Integration
 
@@ -300,160 +317,122 @@ sentinel:
       - sentinel-report.md
 ```
 
-## Security: OWASP/CWE Coverage
+---
 
-The Security Scanning validator maps findings to OWASP Top 10 (2021) and CWE:
+## Security Coverage
+
+Full OWASP Top 10 (2021) and CWE mapping:
 
 | Detection | CWE | OWASP Category |
-|---|---|---|
-| eval() / Function() | CWE-94, CWE-95 | A03:2021 Injection |
-| SQL template injection | CWE-89 | A03:2021 Injection |
-| Command injection | CWE-78 | A03:2021 Injection |
-| innerHTML / document.write | CWE-79 | A07:2021 XSS |
-| Hardcoded passwords/tokens | CWE-798 | A02:2021 Crypto Failures |
-| Hardcoded API keys | CWE-321 | A02:2021 Crypto Failures |
-| MD5/SHA-1 usage | CWE-327 | A02:2021 Crypto Failures |
-| Path traversal | CWE-22 | A01:2021 Access Control |
-| Unsafe deserialization | CWE-502 | A04:2021 Insecure Design |
+|-----------|-----|----------------|
+| `eval()` / `Function()` | CWE-94, CWE-95 | A03 Injection |
+| SQL template injection | CWE-89 | A03 Injection |
+| Command injection | CWE-78 | A03 Injection |
+| `innerHTML` / `document.write` | CWE-79 | A07 XSS |
+| Hardcoded passwords/tokens | CWE-798 | A02 Crypto Failures |
+| Hardcoded API keys | CWE-321 | A02 Crypto Failures |
+| MD5/SHA-1 usage | CWE-327 | A02 Crypto Failures |
+| Path traversal | CWE-22 | A01 Access Control |
+| Unsafe deserialization | CWE-502 | A04 Insecure Design |
+
+---
 
 ## Halstead Complexity Metrics
 
-The Maintainability Checker includes Halstead software science metrics:
+The Maintainability validator integrates Halstead software science metrics with a 20% weight in the final Maintainability Index:
 
-- **Volume (V)**: Information content of the code — `N × log₂(η)`
-- **Difficulty (D)**: How hard the code is to understand — `(η₁/2) × (N₂/η₂)`
-- **Effort (E)**: Mental effort to comprehend — `D × V`
-- **Estimated Time**: Development time in seconds — `E / 18`
-- **Estimated Bugs**: Bug prediction — `V / 3000`
+- **Volume (V)**: `N * log2(n)` — information content of the code
+- **Difficulty (D)**: `(n1/2) * (N2/n2)` — cognitive complexity to understand
+- **Effort (E)**: `D * V` — mental effort to comprehend
+- **Estimated Time**: `E / 18` — predicted development time (seconds)
+- **Estimated Bugs**: `V / 3000` — predicted defect count
 
-These are integrated into the Maintainability Index with a 20% weight.
+---
 
-## Exit Codes
+## Incremental Validation
 
-| Code | Meaning |
-|---|---|
-| `0` | Quality gate passed |
-| `1` | Quality gate failed |
-| `2` | Runtime error |
+```typescript
+import { DiffAnalyzer } from 'sentinel-method';
+
+const diff = new DiffAnalyzer('.');
+
+// Only files changed in current PR
+const prFiles = diff.getDiffAgainst('main');
+
+// Only staged files (pre-commit)
+const staged = diff.getStagedFiles();
+
+// Filter to code files
+const codeFiles = diff.filterCodeFiles(staged);
+```
+
+Result caching is automatic via `.sentinel-cache/`. Unchanged files are skipped on subsequent runs.
+
+---
 
 ## Testing
 
 ```bash
-npm test                # Run all tests
+npm test                # Run all 765 tests
 npm run test:coverage   # With coverage report
 npm run test:watch      # Watch mode
 ```
 
-Current metrics: **311 tests**, 96%+ statements, 87%+ branches, 96%+ functions.
+**765 tests** across 32 suites. **95% statement coverage**, 99% function coverage.
 
-## Development
-
-```bash
-npm install          # Install dependencies
-npm run build        # Compile TypeScript
-npm run lint         # ESLint check
-npm run type-check   # TypeScript strict mode
-npm run validate     # All checks: lint + type-check + test
-```
+---
 
 ## API Reference
 
 ### Core Classes
 
-```typescript
-class Sentinel {
-  constructor(config?: Partial<SentinelConfig>);
-  validate(sourceDir: string): Promise<ValidationResult>;
-  registerValidator(validator: BaseValidator): void;
-  getValidators(): BaseValidator[];
-}
+| Class | Purpose |
+|-------|---------|
+| `Sentinel` | Main orchestrator — runs all validators, aggregates results |
+| `BaseValidator` | Abstract base — file traversal, issue creation, result building |
+| `FileCollector` | Cached I/O — collect, filter, read files with caching |
+| `SentinelIgnore` | `.gitignore`-style pattern matching |
+| `PluginLoader` | Load and register custom validator plugins |
+| `ResultCache` | File-hash-based validation result caching |
+| `HookManager` | Git hook installation and management |
+| `DiffAnalyzer` | Git diff analysis for incremental validation |
+| `ConsensusEngine` | Dual-agent verification with consensus scoring |
+| `BusinessGates` | Business rule enforcement layer |
+| `RiskBudget` | Risk allocation and tracking across validators |
+| `FitnessFunctions` | Architectural fitness function evaluation |
 
-abstract class BaseValidator {
-  abstract readonly name: string;
-  abstract validate(sourceDir: string): ValidatorResult;
-  protected getAllFiles(dir: string): string[];
-  protected getSourceFiles(dir: string): string[];
-  protected createIssue(severity, code, message, extras?): ValidationIssue;
-  protected buildResult(passed, issues, details, score?, threshold?): ValidatorResult;
-}
+### All 14 Validator Classes
 
-class FileCollector {
-  constructor(sourceDir: string, excludePatterns?: string[]);
-  collect(): string[];
-  getSourceFiles(): string[];
-  getTestFiles(): string[];
-  readFile(filePath: string): string;  // cached
-  clearCache(): void;
-  getIgnore(): SentinelIgnore;
-}
-
-class SentinelIgnore {
-  constructor(patterns?: string[]);
-  static fromFile(dir: string): SentinelIgnore;
-  addPatterns(patterns: string[]): void;
-  isIgnored(relativePath: string): boolean;
-  filter(paths: string[], baseDir: string): string[];
-  getPatterns(): string[];
-}
-
-class PluginLoader {
-  register(plugin: SentinelPlugin): void;
-  loadFromDirectory(dirPath: string): number;
-  createValidators(config: SentinelConfig): BaseValidator[];
-}
-
-class ResultCache {
-  constructor(projectDir: string);
-  save(result: ValidationResult, fileHashes: Record<string, string>): void;
-  load(): CacheEntry | null;
-  hasChanges(currentHashes: Record<string, string>): boolean;
-  static computeHashes(files: string[], baseDir: string): Record<string, string>;
-  clear(): void;
-  exists(): boolean;
-}
-
-class HookManager {
-  constructor(projectDir: string);
-  installPreCommit(options?: HookOptions): InstallResult;
-  installPrePush(options?: HookOptions): InstallResult;
-  installAll(options?: HookOptions): { preCommit: InstallResult; prePush: InstallResult };
-  remove(hookName: string): boolean;
-  removeAll(): { preCommit: boolean; prePush: boolean };
-  isInstalled(hookName: string): boolean;
-  listInstalled(): string[];
-}
-
-class DiffAnalyzer {
-  constructor(projectDir: string);
-  getStagedFiles(): string[];
-  getModifiedFiles(): string[];
-  getChangedFiles(): string[];
-  getDiffAgainst(base: string): string[];
-  getLastCommitFiles(): string[];
-  filterCodeFiles(files: string[]): string[];
-  toAbsolutePaths(files: string[]): string[];
-}
-```
-
-### Validators
-
-| Class | Description |
-|---|---|
+| Class | Standards |
+|-------|-----------|
 | `TestingValidator` | Test coverage, assertions, edge cases |
-| `SecurityValidator` | OWASP-mapped vulnerability scanning |
-| `PerformanceValidator` | Complexity, memory, async patterns |
-| `MaintainabilityValidator` | Halstead metrics, MI index, docs |
-| `DependencyValidator` | Package.json health analysis |
-| `DocumentationValidator` | JSDoc, README, CHANGELOG coverage |
-| `CodeStyleValidator` | Style consistency enforcement |
+| `SecurityValidator` | OWASP Top 10, CWE-22/78/79/89/94/95/321/327/502/798 |
+| `PerformanceValidator` | Cyclomatic complexity, async patterns |
+| `MaintainabilityValidator` | Halstead metrics, Maintainability Index |
+| `DependencyValidator` | Package health, semver compliance |
+| `DocumentationValidator` | JSDoc coverage, README/CHANGELOG |
+| `CodeStyleValidator` | Formatting consistency |
+| `ArchitectureValidator` | Circular deps, SOLID violations |
+| `ApiContractValidator` | REST patterns, Express/NestJS/Next.js |
+| `AccessibilityValidator` | WCAG 2.1 AA — HTML, Vue, Svelte, JSX |
+| `I18nValidator` | Hardcoded strings, locale formatting |
+| `ErrorHandlingValidator` | Error resilience patterns |
+| `TypeSafetyValidator` | TypeScript strictness enforcement |
+| `DeadCodeValidator` | Unused code elimination |
+
+---
 
 ## License
 
-MIT License 2026 — Camilo Girardelli / Girardelli Tecnologia
+MIT License 2026 — [Camilo Girardelli](https://github.com/camilogirardelli) / Girardelli Tecnologia
 
-## Author
+---
 
-**Camilo Girardelli**
-- IEEE Senior Member
-- Senior Software Architect
-- CTO at Girardelli Tecnologia
+<p align="center">
+  <strong>Built by <a href="https://github.com/camilogirardelli">Camilo Girardelli</a></strong><br/>
+  IEEE Senior Member | Senior Software Architect | CTO at Girardelli Tecnologia
+</p>
+
+<p align="center">
+  <sub>If AI writes the code, Sentinel decides if it ships.</sub>
+</p>

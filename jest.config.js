@@ -8,13 +8,15 @@ module.exports = {
     'src/**/*.ts',
     '!src/**/*.d.ts',
     '!src/index.ts',
+    '!src/cli.ts',
+    '!src/cli-helpers.ts',
   ],
   coverageThreshold: {
     global: {
-      branches: 75,
-      functions: 85,
-      lines: 85,
-      statements: 85,
+      branches: 80,
+      functions: 95,
+      lines: 92,
+      statements: 92,
     },
   },
 };

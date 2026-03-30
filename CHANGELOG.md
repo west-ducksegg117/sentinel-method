@@ -2,6 +2,25 @@
 
 All notable changes to Sentinel Method will be documented in this file.
 
+## [3.0.0] - 2026-03-25
+
+### Added
+- **Sub-Agent Verification**: Dual independent analysis (primary + adversarial) with consensus engine
+- `BaseVerifier` abstract class for creating adversarial verifiers
+- `SecurityVerifier` — adversarial verifier for security domain
+- `ConsensusEngine` — compares primary vs adversarial findings with agreement/disagreement/uncertainty zones
+- Taint flow analysis in SecurityVerifier for tracking unsanitized input propagation
+- MCP integration support via `nexus-validation` server
+
+### Changed
+- All validator files refactored to max 500 lines (extracted helpers)
+- Reporter split into `reporter.ts` + `formatters/html-formatter.ts`
+- Dead code helpers rewritten with return-value pattern
+
+### Fixed
+- `extractFunctionBlocks` now detects callback arrow functions
+- Unused imports cleaned across all validators
+
 ## [2.0.0] - 2026-03-22
 
 ### Added
