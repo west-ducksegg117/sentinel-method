@@ -151,7 +151,7 @@ describe('PluginLoader', () => {
   });
 
   test('deve carregar plugins de um diretório', () => {
-    const pluginDir = path.join(__dirname, '../test-plugins');
+    const pluginDir = path.join('/tmp', 'sentinel-test-plugins');
     fs.mkdirSync(pluginDir, { recursive: true });
 
     // Criar um plugin JS válido
@@ -183,7 +183,7 @@ describe('PluginLoader', () => {
   });
 
   test('deve ignorar arquivos não-JS no diretório de plugins', () => {
-    const pluginDir = path.join(__dirname, '../test-plugins-ignore');
+    const pluginDir = path.join('/tmp', 'sentinel-test-plugins-ignore');
     fs.mkdirSync(pluginDir, { recursive: true });
 
     fs.writeFileSync(path.join(pluginDir, 'readme.md'), '# Plugins');

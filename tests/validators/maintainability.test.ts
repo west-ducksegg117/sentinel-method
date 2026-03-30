@@ -8,7 +8,7 @@ describe('MaintainabilityValidator', () => {
   let config: SentinelConfig;
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '../../test-project-maintainability');
+    testDir = path.join('/tmp', 'sentinel-test-project-maintainability');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
     }

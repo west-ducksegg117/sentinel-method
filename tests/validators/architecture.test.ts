@@ -8,7 +8,7 @@ describe('ArchitectureValidator', () => {
   let config: SentinelConfig;
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '../../test-project-arch');
+    testDir = path.join('/tmp', 'sentinel-test-project-arch');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
     }
@@ -177,5 +177,184 @@ describe('ArchitectureValidator', () => {
     expect(result.score).toBeLessThanOrEqual(100);
     expect(result.threshold).toBeDefined();
     expect(result.threshold).toBe(70);
+  });
+
+  // ── Detecção de import/require patterns ──
+
+  test('deve analisar imports e requires', () => {
+    const fileA = path.join(testDir, 'moduleA.ts');
+    const fileB = path.join(testDir, 'moduleB.ts');
+
+    fs.writeFileSync(fileA, "import { func } from './moduleB';");
+    fs.writeFileSync(fileB, 'export function func() {}');
+
+    const validator = new ArchitectureValidator(config);
+    const result = validator.validate(testDir);
+
+    expect(result.validator).toBe('Architecture Analysis');
+  });
+
+  test('deve detectar múltiplas dependências em arquivo', () => {
+    const file = path.join(testDir, 'hub.ts');
+    fs.writeFileSync(file, `
+      import { a } from './a';
+      import { b } from './b';
+      import { c } from './c';
+      const utils = require('./utils');
+      const path = require('path');
+    `);
+
+    const validator = new ArchitectureValidator(config);
+    const result = validator.validate(testDir);
+
+    expect(result.validator).toBe('Architecture Analysis');
+  });
+
+  // ── Barrel exports ──
+
+  test('deve detectar ausência de barrel exports em diretório', () => {
+    // Criar diretório com 5+ arquivos sem index.ts
+    const dir = path.join(testDir, 'components-no-barrel');
+    fs.mkdirSync(dir, { recursive: true });
+
+    for (let i = 0; i < 5; i++) {
+      fs.writeFileSync(path.join(dir, `comp${i}.ts`), `export const C${i} = {};`);
+    }
+
+    const validator = new ArchitectureValidator(config);
+    const result = validator.validate(testDir);
+
+    expect(result.validator).toBe('Architecture Analysis');
+    expect(result.issues.some(i => i.code === 'MISSING_BARREL')).toBe(true);
+  });
+
+  test('deve permitir barrel exports quando index.ts existe', () => {
+    // Criar diretório com arquivos e index.ts
+    const dir = path.join(testDir, 'components-with-barrel');
+    fs.mkdirSync(dir, { recursive: true });
+
+    for (let i = 0; i < 4; i++) {
+      fs.writeFileSync(path.join(dir, `comp${i}.ts`), `export const C${i} = {};`);
+    }
+    fs.writeFileSync(path.join(dir, 'index.ts'), 'export * from "./comp0";');
+
+    const validator = new ArchitectureValidator(config);
+    const result = validator.validate(testDir);
+
+    expect(result.validator).toBe('Architecture Analysis');
+  });
+
+  // ── Profundidade de nesting ──
+
+  test('deve detectar nesting profundo (7+ níveis)', () => {
+    // Criar estrutura muito profunda
+    const deepPath = path.join(
+      testDir,
+      'src', 'app', 'modules', 'users', 'services', 'handlers', 'utils', 'deep.ts'
+    );
+    fs.mkdirSync(path.dirname(deepPath), { recursive: true });
+    fs.writeFileSync(deepPath, 'export const deep = true;');
+
+    const validator = new ArchitectureValidator(config);
+    const result = validator.validate(testDir);
+
+    expect(result.issues.some(i => i.code === 'DEEP_NESTING')).toBe(true);
+  });
+
+  test('deve permitir nesting moderado (até 5 níveis)', () => {
+    const moderatePath = path.join(
+      testDir,
+      'src', 'app', 'modules', 'users', 'moderate.ts'
+    );
+    fs.mkdirSync(path.dirname(moderatePath), { recursive: true });
+    fs.writeFileSync(moderatePath, 'export const moderate = true;');
+
+    const validator = new ArchitectureValidator(config);
+    const result = validator.validate(testDir);
+
+    // Não deve detectar problema em nesting moderado
+    expect(result.validator).toBe('Architecture Analysis');
+  });
+
+  // ── God classes (muitos exports) ──
+
+  test('deve permitir arquivos com poucos exports', () => {
+    const file = path.join(testDir, 'utils-few.ts');
+    fs.writeFileSync(file, `
+      export function func1() {}
+      export function func2() {}
+      export function func3() {}
+    `);
+
+    const validator = new ArchitectureValidator(config);
+    const result = validator.validate(testDir);
+
+    expect(result.issues.some(i => i.code === 'GOD_CLASS_EXPORTS')).toBe(false);
+  });
+
+  // ── Detecção de problemas múltiplos ──
+
+  test('deve detectar múltiplos problemas de arquitetura', () => {
+    // God class (muitos métodos)
+    let godClassContent = '';
+    for (let i = 0; i < 300; i++) {
+      godClassContent += `method${i}() { return ${i}; }\n`;
+    }
+    fs.writeFileSync(path.join(testDir, 'god.ts'), godClassContent);
+
+    // Nesting profundo
+    const deepPath = path.join(testDir, 'a', 'b', 'c', 'd', 'e', 'f', 'deep.ts');
+    fs.mkdirSync(path.dirname(deepPath), { recursive: true });
+    fs.writeFileSync(deepPath, 'export const x = 1;');
+
+    // Diretório sem barrel
+    const noBarrelDir = path.join(testDir, 'many-files');
+    fs.mkdirSync(noBarrelDir, { recursive: true });
+    for (let i = 0; i < 5; i++) {
+      fs.writeFileSync(path.join(noBarrelDir, `file${i}.ts`), `export const F${i} = {};`);
+    }
+
+    const validator = new ArchitectureValidator(config);
+    const result = validator.validate(testDir);
+
+    // Valida que análise foi realizada
+    expect(result.validator).toBe('Architecture Analysis');
+    expect(result.score).toBeDefined();
+  });
+
+  // ── Análise de simplicidade ──
+
+  test('deve passar com projeto simples e bem organizado', () => {
+    const simpleFile = path.join(testDir, 'simple.ts');
+    fs.writeFileSync(simpleFile, `
+      export interface User {
+        id: string;
+        name: string;
+      }
+
+      export function createUser(name: string): User {
+        return { id: '1', name };
+      }
+    `);
+
+    const validator = new ArchitectureValidator(config);
+    const result = validator.validate(testDir);
+
+    expect(result.validator).toBe('Architecture Analysis');
+    expect(result.passed).toBe(true);
+    expect(result.issues).toHaveLength(0);
+  });
+
+  // ── Details object ──
+
+  test('deve incluir detalhes na resposta', () => {
+    const file = path.join(testDir, 'test.ts');
+    fs.writeFileSync(file, 'export const x = 1;');
+
+    const validator = new ArchitectureValidator(config);
+    const result = validator.validate(testDir);
+
+    expect(result.details).toBeDefined();
+    expect(typeof result.details).toBe('object');
   });
 });

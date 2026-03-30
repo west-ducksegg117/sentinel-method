@@ -8,7 +8,7 @@ describe('DependencyValidator', () => {
   let config: SentinelConfig;
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '../../test-project-dependency');
+    testDir = path.join('/tmp', 'sentinel-test-project-dependency');
     fs.mkdirSync(testDir, { recursive: true });
     config = {
       testingThreshold: 80,

@@ -6,7 +6,7 @@ describe('Sentinel', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '../test-project');
+    testDir = path.join('/tmp', 'sentinel-test-project');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
     }

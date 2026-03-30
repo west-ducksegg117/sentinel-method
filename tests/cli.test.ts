@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 const CLI_PATH = path.join(__dirname, '../dist/cli.js');
-const PROJECT_DIR = path.join(__dirname, '../test-cli-project');
+const PROJECT_DIR = path.join('/tmp', 'sentinel-test-cli-project');
 
 /** Helper: executa o CLI e retorna stdout */
 function runCli(args: string): string {
@@ -229,9 +229,10 @@ describe('CLI: sentinel command', () => {
       expect(output).toContain('--json');
     });
 
-    test('deve mostrar versão', () => {
+    test('deve mostrar versão do package.json', () => {
       const output = runCli('--version');
-      expect(output.trim()).toBe('2.0.0');
+      const pkg = require('../package.json');
+      expect(output.trim()).toBe(pkg.version);
     });
   });
 
@@ -241,7 +242,7 @@ describe('CLI: sentinel command', () => {
     let initDir: string;
 
     beforeEach(() => {
-      initDir = path.join(__dirname, '../test-init-project');
+      initDir = path.join('/tmp', 'sentinel-test-init-project');
       fs.mkdirSync(initDir, { recursive: true });
     });
 

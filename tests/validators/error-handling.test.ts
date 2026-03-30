@@ -8,7 +8,7 @@ describe('ErrorHandlingValidator', () => {
   let config: SentinelConfig;
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '../../test-project-errhandling');
+    testDir = path.join('/tmp', 'sentinel-test-project-errhandling');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
     }

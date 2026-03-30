@@ -8,7 +8,7 @@ describe('TypeSafetyValidator', () => {
   let config: SentinelConfig;
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '../../test-project-typesafety');
+    testDir = path.join('/tmp', 'sentinel-test-project-typesafety');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
     }

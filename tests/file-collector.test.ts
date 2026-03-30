@@ -6,7 +6,7 @@ describe('FileCollector', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '../test-project-collector');
+    testDir = path.join('/tmp', 'sentinel-test-project-collector');
     fs.mkdirSync(testDir, { recursive: true });
   });
 

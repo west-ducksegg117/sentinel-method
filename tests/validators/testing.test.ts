@@ -13,7 +13,7 @@ describe('TestingValidator', () => {
   };
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '../../test-project-testing');
+    testDir = path.join('/tmp', 'sentinel-test-project-testing');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
     }

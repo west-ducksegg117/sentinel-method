@@ -8,7 +8,7 @@ describe('DocumentationValidator', () => {
   let config: SentinelConfig;
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '../../test-project-docs');
+    testDir = path.join('/tmp', 'sentinel-test-project-docs');
     fs.mkdirSync(testDir, { recursive: true });
     config = {
       testingThreshold: 80,

@@ -8,7 +8,7 @@ describe('ConfigLoader', () => {
 
   beforeEach(() => {
     loader = new ConfigLoader();
-    tempConfigPath = path.join(__dirname, '../test-sentinelrc.json');
+    tempConfigPath = path.join('/tmp', 'sentinel-test-sentinelrc.json');
   });
 
   afterEach(() => {

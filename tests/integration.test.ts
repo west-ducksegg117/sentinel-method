@@ -8,7 +8,7 @@ describe('Integration: Pipeline completo', () => {
   let projectDir: string;
 
   beforeEach(() => {
-    projectDir = path.join(__dirname, '../test-integration-project');
+    projectDir = path.join('/tmp', 'sentinel-test-integration-project');
     fs.mkdirSync(path.join(projectDir, 'src'), { recursive: true });
     fs.mkdirSync(path.join(projectDir, 'tests'), { recursive: true });
   });

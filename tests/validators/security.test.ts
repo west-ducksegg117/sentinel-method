@@ -8,7 +8,7 @@ describe('SecurityValidator', () => {
   let config: SentinelConfig;
 
   beforeEach(() => {
-    testDir = path.join(__dirname, '../../test-project-security');
+    testDir = path.join('/tmp', 'sentinel-test-project-security');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
     }
